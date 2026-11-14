@@ -32,10 +32,6 @@
             overflow-wrap: anywhere;
         }
 
-        select, textarea, button {
-            font: inherit;
-        }
-
         button:disabled {
             cursor: not-allowed;
             opacity: 0.55;
@@ -73,9 +69,9 @@
 <body class="bg-gray-950 text-gray-100 flex flex-col min-h-screen">
 
 
-<!-- ================================================== -->
-<!-- HEADER                                             -->
-<!-- ================================================== -->
+<!-- ================================================= -->
+<!-- HEADER                                            -->
+<!-- ================================================= -->
 
 <header class="bg-gray-900 border-b border-gray-800 p-4">
 
@@ -120,8 +116,7 @@
         <!-- WEB SEARCH -->
 
         <label id="searchControl"
-            class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700 opacity-40"
-            title="Only available with your personal Gemma AI.">
+            class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700 opacity-40">
 
             <input
                 type="checkbox"
@@ -215,8 +210,8 @@
                 </option>
 
                 <option value="cloudflare-backup">
-    Cloudflare AI (My Backup Model)
-</option>
+                    Cloudflare AI (My Backup Model)
+                </option>
 
             </optgroup>
 
@@ -225,17 +220,13 @@
     </div>
 
 
-    <!-- INFORMATION -->
-
     <div class="mt-3 text-xs text-gray-500">
 
-        Cloud Memory is shared across models.
-        Failed models automatically enter cooldown until midnight Toronto time.
+        Failed models are disabled until 12:00 AM Toronto time.
+        Cloud memory is shared across models.
 
     </div>
 
-
-    <!-- ACTIVE MODEL -->
 
     <div class="mt-2 text-xs text-blue-300">
 
@@ -250,9 +241,9 @@
 
 
 
-<!-- ================================================== -->
-<!-- CHAT                                               -->
-<!-- ================================================== -->
+<!-- ================================================= -->
+<!-- CHAT                                              -->
+<!-- ================================================= -->
 
 <main
     id="chatContainer"
@@ -287,7 +278,7 @@ Your conversations are saved to Google Drive and can be shared between AI models
 
 WEB SEARCH:
 
-Available when you select your own Gemma AI.
+Available with your personal Gemma and Cloudflare AI.
 
         </div>
 
@@ -297,9 +288,9 @@ Available when you select your own Gemma AI.
 
 
 
-<!-- ================================================== -->
-<!-- INPUT                                              -->
-<!-- ================================================== -->
+<!-- ================================================= -->
+<!-- INPUT                                             -->
+<!-- ================================================= -->
 
 <footer class="bg-gray-900 border-t border-gray-800 p-4">
 
@@ -333,9 +324,9 @@ Available when you select your own Gemma AI.
 
 
 
-<!-- ================================================== -->
-<!-- JAVASCRIPT                                         -->
-<!-- ================================================== -->
+<!-- ================================================= -->
+<!-- JAVASCRIPT                                        -->
+<!-- ================================================= -->
 
 <script>
 
@@ -346,7 +337,6 @@ Available when you select your own Gemma AI.
 
 const APPS_SCRIPT_URL =
 "https://script.google.com/macros/s/AKfycbxDaZYcylrw4dps4kfQsosJSThOzRWOiN_07g57b6NddUofisi7Ul19whVwXu6wuM66/exec";
-
 
 const DAILY_LIMIT = 50;
 
@@ -401,7 +391,7 @@ let notificationTimer = null;
 let currentFailureState = {};
 
 
-// Save original dropdown labels.
+// Save original labels before applying status changes.
 
 Array.from(modelSelect.options).forEach(option => {
 
@@ -420,24 +410,19 @@ function getModelLabel(model) {
     const option = Array.from(modelSelect.options)
         .find(item => item.value === model);
 
-
     if (option) {
 
         return option.dataset.baseLabel;
 
     }
 
-
     const names = {
 
-        "custom-gemma":
-            "Colab Gemma 2B",
+        "custom-gemma": "Colab Gemma 2B",
 
-        "cloudflare-backup":
-            "Cloudflare AI Backup"
+        "cloudflare-backup": "Cloudflare AI Backup"
 
     };
-
 
     return names[model] || model || "Unknown model";
 
@@ -449,10 +434,15 @@ function getModelLabel(model) {
 // ====================================================
 
 function isMyAI() {
+
     return (
+
         modelSelect.value === "custom-gemma" ||
+
         modelSelect.value === "cloudflare-backup"
+
     );
+
 }
 
 
@@ -464,9 +454,7 @@ function updateSearchAvailability() {
 
     const available = isMyAI();
 
-
-    searchToggle.disabled =
-        !available;
+    searchToggle.disabled = !available;
 
 
     if (!available) {
@@ -484,9 +472,9 @@ function updateSearchAvailability() {
 
     searchControl.title = available
 
-        ? "Web Search is available with your personal Gemma AI."
+        ? "Web Search is available with your personal AI."
 
-        : "Web Search is only available with your personal Gemma AI.";
+        : "Web Search is only available with your personal AI.";
 
 }
 
@@ -533,13 +521,9 @@ function getToday() {
 
     return (
 
-        values.year +
+        values.year + "-" +
 
-        "-" +
-
-        values.month +
-
-        "-" +
+        values.month + "-" +
 
         values.day
 
@@ -574,7 +558,6 @@ function getUsage() {
 
         return saved;
 
-
     } catch {
 
         return {
@@ -594,9 +577,7 @@ function updateUsageDisplay() {
 
     const usage = getUsage();
 
-
     usageCounter.innerText =
-
         `Usage: ${usage.count}/${DAILY_LIMIT} today`;
 
 }
@@ -629,12 +610,9 @@ function incrementUsage() {
 
 function setStatus(message, color) {
 
-    status.innerText =
-        "● " + message;
-
+    status.innerText = "● " + message;
 
     status.className =
-
         `text-xs px-3 py-2 rounded-full bg-gray-800 ${color}`;
 
 }
@@ -648,46 +626,33 @@ function appendMessage(role, content) {
 
     const isUser = role === "user";
 
-
     const wrapper =
         document.createElement("div");
 
-
     wrapper.className =
-
         `flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`;
 
 
-    // AVATAR
-
     const avatar =
         document.createElement("div");
-
 
     avatar.className =
 
         `${isUser ? "bg-emerald-600" : "bg-blue-600"} text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0`;
 
-
     avatar.innerText =
         isUser ? "You" : "AI";
 
 
-    // BUBBLE
-
     const bubble =
         document.createElement("div");
-
 
     bubble.className =
 
         `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} message-bubble p-4 rounded-2xl max-w-[90%] md:max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap`;
 
 
-    // SAFE OUTPUT
-
     bubble.textContent = content;
-
 
     wrapper.appendChild(avatar);
 
@@ -695,10 +660,8 @@ function appendMessage(role, content) {
 
     chatContainer.appendChild(wrapper);
 
-
     chatContainer.scrollTop =
         chatContainer.scrollHeight;
-
 
     return wrapper;
 
@@ -790,6 +753,11 @@ function applyModelStates(modelStates) {
     currentFailureState = failed;
 
 
+    // This is deliberately simple:
+    // Healthy options stay selectable.
+    // Failed options become disabled.
+    // Cloudflare has NO automatic-only restriction.
+
     Array.from(modelSelect.options).forEach(option => {
 
         const model =
@@ -800,11 +768,12 @@ function applyModelStates(modelStates) {
             option.dataset.baseLabel || option.textContent;
 
 
-const failure = failed[model];
+        const failure =
+            failed[model];
 
-// Only disable models that actually failed.
 
-option.disabled = Boolean(failure);
+        option.disabled =
+            Boolean(failure);
 
 
         if (failure) {
@@ -820,36 +789,17 @@ option.disabled = Boolean(failure);
 
                 "Failed today: " +
 
-                failure.reason;
+                String(failure.reason || "Unavailable");
 
-        }
+        } else {
 
-        else if (automaticOnly) {
-
-            option.textContent =
-
-                baseLabel +
-
-                " — AUTOMATIC ONLY";
-
-
-            option.title =
-
-                "Used automatically by the failover queue.";
-
-        }
-
-        else {
-
-            option.textContent =
-                baseLabel;
+            option.textContent = baseLabel;
 
             option.title = "";
 
         }
 
     });
-
 
 }
 
@@ -872,30 +822,17 @@ function showFailoverNotification(
 
     if (!toast) {
 
-        toast =
-            document.createElement("div");
+        toast = document.createElement("div");
 
+        toast.id = "aiFailoverToast";
 
-        toast.id =
-            "aiFailoverToast";
+        toast.setAttribute("role", "status");
 
-
-        toast.setAttribute(
-            "role",
-            "status"
-        );
-
-
-        toast.setAttribute(
-            "aria-live",
-            "polite"
-        );
-
+        toast.setAttribute("aria-live", "polite");
 
         toast.className =
 
             "fixed top-24 right-4 z-50 max-w-sm p-4 rounded-xl shadow-2xl border text-sm whitespace-pre-wrap";
-
 
         document.body.appendChild(toast);
 
@@ -917,12 +854,9 @@ function showFailoverNotification(
         );
 
 
-    toast.textContent =
-        message;
+    toast.textContent = message;
 
-
-    toast.style.display =
-        "block";
+    toast.style.display = "block";
 
 
     if (notificationTimer) {
@@ -934,8 +868,7 @@ function showFailoverNotification(
 
     notificationTimer = setTimeout(() => {
 
-        toast.style.display =
-            "none";
+        toast.style.display = "none";
 
     }, 12000);
 
@@ -969,7 +902,6 @@ function getTorontoDateKey(date) {
 
     const values = {};
 
-
     parts.forEach(part => {
 
         values[part.type] = part.value;
@@ -979,13 +911,9 @@ function getTorontoDateKey(date) {
 
     return (
 
-        values.year +
+        values.year + "-" +
 
-        "-" +
-
-        values.month +
-
-        "-" +
+        values.month + "-" +
 
         values.day
 
@@ -1000,9 +928,7 @@ function getTorontoDateKey(date) {
 
 function millisecondsUntilTorontoMidnight() {
 
-    const now =
-        Date.now();
-
+    const now = Date.now();
 
     const todayKey =
         getTorontoDateKey(new Date(now));
@@ -1030,9 +956,7 @@ function millisecondsUntilTorontoMidnight() {
 
             low = middle;
 
-        }
-
-        else {
+        } else {
 
             high = middle;
 
@@ -1054,7 +978,6 @@ function scheduleMidnightRefresh() {
     setTimeout(async () => {
 
         await refreshModelStates();
-
 
         scheduleMidnightRefresh();
 
@@ -1112,17 +1035,14 @@ async function refreshModelStates() {
 
         if (data.modelStates) {
 
-            applyModelStates(
-                data.modelStates
-            );
+            applyModelStates(data.modelStates);
 
         }
-
 
     } catch (error) {
 
         console.warn(
-            "Unable to refresh AI model status:",
+            "Unable to refresh model status:",
             error
         );
 
@@ -1132,7 +1052,7 @@ async function refreshModelStates() {
 
 
 // ====================================================
-// 16. MODEL FAILURE DETAILS
+// 16. FAILED MODEL NAMES
 // ====================================================
 
 function getFailedNames(data) {
@@ -1174,7 +1094,7 @@ async function handleSend() {
     if (!text) return;
 
 
-    // CHECK DAILY LIMIT
+    // DAILY LIMIT
 
     if (getUsage().count >= DAILY_LIMIT) {
 
@@ -1187,8 +1107,6 @@ async function handleSend() {
     }
 
 
-    // LOCK BUTTON
-
     isSending = true;
 
     sendBtn.disabled = true;
@@ -1196,17 +1114,14 @@ async function handleSend() {
     sendBtn.innerText = "Sending...";
 
 
-    // DISPLAY USER MESSAGE
+    // USER MESSAGE
 
     userInput.value = "";
 
     userInput.style.height = "auto";
 
 
-    appendMessage(
-        "user",
-        text
-    );
+    appendMessage("user", text);
 
 
     messages.push({
@@ -1218,7 +1133,7 @@ async function handleSend() {
     });
 
 
-    // KEEP HISTORY WITHIN REASONABLE SIZE.
+    // Keep history to a reasonable size.
 
     if (messages.length > 100) {
 
@@ -1231,16 +1146,20 @@ async function handleSend() {
         modelSelect.value;
 
 
-    // WEB SEARCH IS ONLY FOR PERSONAL GEMMA.
+    // SEARCH ONLY FOR PERSONAL AI
 
     const useSearch =
 
-        selectedModel === "custom-gemma" &&
+        (
+
+            selectedModel === "custom-gemma" ||
+
+            selectedModel === "cloudflare-backup"
+
+        ) &&
 
         searchToggle.checked;
 
-
-    // THINKING MESSAGE
 
     const loadingMessage =
         appendMessage(
@@ -1257,8 +1176,6 @@ async function handleSend() {
         );
 
 
-        // REQUEST
-
         const payload = {
 
             model: selectedModel,
@@ -1274,27 +1191,26 @@ async function handleSend() {
         };
 
 
-        const response =
-            await fetch(
+        const response = await fetch(
 
-                APPS_SCRIPT_URL,
+            APPS_SCRIPT_URL,
 
-                {
+            {
 
-                    method: "POST",
+                method: "POST",
 
-                    headers: {
+                headers: {
 
-                        "Content-Type":
-                            "text/plain;charset=utf-8"
+                    "Content-Type":
+                        "text/plain;charset=utf-8"
 
-                    },
+                },
 
-                    body: JSON.stringify(payload)
+                body: JSON.stringify(payload)
 
-                }
+            }
 
-            );
+        );
 
 
         const rawText =
@@ -1308,9 +1224,7 @@ async function handleSend() {
 
             data = JSON.parse(rawText);
 
-        }
-
-        catch {
+        } catch {
 
             throw new Error(
                 "Apps Script returned invalid JSON."
@@ -1319,19 +1233,17 @@ async function handleSend() {
         }
 
 
-        // UPDATE MODEL STATUS.
+        // UPDATE MODEL AVAILABILITY
 
         if (data.modelStates) {
 
-            applyModelStates(
-                data.modelStates
-            );
+            applyModelStates(data.modelStates);
 
         }
 
 
         // =================================================
-        // 18. ALL MODELS FAILED
+        // ALL MODELS FAILED
         // =================================================
 
         if (data.allModelsFailed) {
@@ -1361,7 +1273,7 @@ async function handleSend() {
 
                 "No AI response could be generated.\n\n" +
 
-                "The unavailable models will be disabled until " +
+                "Failed models will be disabled until " +
 
                 "12:00 AM Toronto time.";
 
@@ -1394,8 +1306,8 @@ async function handleSend() {
             );
 
 
-            // Keep failed question visible in chat,
-            // but remove it from active conversation history.
+            // Keep the question visible in the chat,
+            // but remove it from active AI history.
 
             if (
 
@@ -1418,7 +1330,7 @@ async function handleSend() {
 
 
         // =================================================
-        // 19. SERVER ERRORS
+        // OTHER SERVER ERRORS
         // =================================================
 
         if (!response.ok || data.error) {
@@ -1431,7 +1343,7 @@ async function handleSend() {
 
 
         // =================================================
-        // 20. SUCCESSFUL RESPONSE
+        // SUCCESSFUL RESPONSE
         // =================================================
 
         const reply =
@@ -1456,13 +1368,11 @@ async function handleSend() {
         });
 
 
-        // UPDATE USAGE
-
         incrementUsage();
 
 
         // =================================================
-        // 21. IDENTIFY ACTIVE MODEL
+        // ACTIVE MODEL
         // =================================================
 
         const activeModel =
@@ -1480,19 +1390,27 @@ async function handleSend() {
             activeName;
 
 
+        // =================================================
+        // FAILOVER NOTIFICATION
+        // =================================================
+
         const failures =
             data.failedAttempts || [];
+
+        const skipped =
+            data.skippedUnavailable || [];
+
+
+        const hadFailures =
+            failures.length > 0 ||
+            skipped.length > 0;
 
 
         const usedFallback =
             data.usedFallback === true;
 
 
-        // =================================================
-        // 22. FAILOVER NOTIFICATION
-        // =================================================
-
-        if (usedFallback || failures.length > 0) {
+        if (usedFallback || hadFailures) {
 
             const failedNames =
                 getFailedNames(data);
@@ -1513,7 +1431,7 @@ async function handleSend() {
 
                 failedText +
 
-                " failed.\n\n" +
+                " failed or was unavailable.\n\n" +
 
                 "Automatically using:\n" +
 
@@ -1543,9 +1461,7 @@ async function handleSend() {
 
             );
 
-        }
-
-        else {
+        } else {
 
             setStatus(
 
@@ -1559,7 +1475,7 @@ async function handleSend() {
 
 
         // =================================================
-        // 23. CLOUD MEMORY STATUS
+        // CLOUD MEMORY
         // =================================================
 
         if (data.memorySaved) {
@@ -1572,9 +1488,7 @@ async function handleSend() {
 
                 "text-xs bg-green-900/30 text-green-300 px-3 py-2 rounded-full";
 
-        }
-
-        else if (data.memoryWarning) {
+        } else if (data.memoryWarning) {
 
             memoryStatus.innerText =
                 "☁ Cloud Memory: Warning";
@@ -1585,14 +1499,11 @@ async function handleSend() {
                 "assistant",
 
                 "⚠️ Memory warning: " +
-
                 data.memoryWarning
 
             );
 
-        }
-
-        else {
+        } else {
 
             memoryStatus.innerText =
                 "☁ Cloud Memory: Not confirmed";
@@ -1601,7 +1512,7 @@ async function handleSend() {
 
 
         // =================================================
-        // 24. LOGGING WARNING
+        // GOOGLE SHEETS WARNING
         // =================================================
 
         if (data.loggingWarning) {
@@ -1618,7 +1529,7 @@ async function handleSend() {
 
 
         // =================================================
-        // 25. WEB SEARCH WARNING
+        // SEARCH WARNING
         // =================================================
 
         if (data.searchWarning) {
@@ -1634,9 +1545,7 @@ async function handleSend() {
         }
 
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
         loadingMessage.remove();
 
@@ -1695,9 +1604,7 @@ async function handleSend() {
 
         }
 
-    }
-
-    finally {
+    } finally {
 
         isSending = false;
 
@@ -1713,20 +1620,17 @@ async function handleSend() {
 
 
 // ====================================================
-// 26. SEND BUTTON
+// 18. SEND BUTTON
 // ====================================================
 
 sendBtn.addEventListener(
-
     "click",
-
     handleSend
-
 );
 
 
 // ====================================================
-// 27. KEYBOARD SHORTCUTS
+// 19. KEYBOARD SHORTCUTS
 // ====================================================
 
 userInput.addEventListener(
@@ -1755,7 +1659,7 @@ userInput.addEventListener(
 
 
 // ====================================================
-// 28. AUTO-RESIZE TEXTAREA
+// 20. AUTO-RESIZE TEXTAREA
 // ====================================================
 
 userInput.addEventListener(
@@ -1765,7 +1669,6 @@ userInput.addEventListener(
     function() {
 
         this.style.height = "auto";
-
 
         this.style.height =
 
@@ -1780,7 +1683,7 @@ userInput.addEventListener(
 
 
 // ====================================================
-// 29. REFRESH WHEN RETURNING TO PAGE
+// 21. REFRESH WHEN RETURNING TO PAGE
 // ====================================================
 
 window.addEventListener(
@@ -1810,11 +1713,8 @@ document.addEventListener(
 
 
 // ====================================================
-// 30. PERIODIC STATUS SYNCHRONIZATION
+// 22. PERIODIC SYNCHRONIZATION
 // ====================================================
-
-// Every minute, ask Apps Script which models
-// are currently unavailable.
 
 setInterval(
 
@@ -1826,7 +1726,7 @@ setInterval(
 
 
 // ====================================================
-// 31. INITIALIZATION
+// 23. INITIALIZATION
 // ====================================================
 
 updateUsageDisplay();
@@ -1841,6 +1741,7 @@ setStatus(
 refreshModelStates();
 
 scheduleMidnightRefresh();
+
 
 </script>
 
