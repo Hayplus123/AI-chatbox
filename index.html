@@ -9,46 +9,102 @@
     <title>AI Hub & Dataset Collector</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100dvh;
+        }
+
+        #chatContainer {
+            scroll-behavior: smooth;
+        }
+
+        #userInput {
+            max-height: 180px;
+        }
+
+        .message-bubble {
+            overflow-wrap: anywhere;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+
+        select, textarea, button {
+            font: inherit;
+        }
+    </style>
 </head>
 
-<body class="bg-gray-950 text-gray-100 flex flex-col h-screen">
 
-    <!-- HEADER -->
+<body class="bg-gray-950 text-gray-100 flex flex-col min-h-screen">
 
-    <header class="bg-gray-900 border-b border-gray-800 p-4 flex flex-wrap justify-between items-center gap-3">
 
-        <div class="flex items-center gap-3 flex-wrap">
+<!-- ================================================= -->
+<!-- HEADER                                            -->
+<!-- ================================================= -->
+
+<header class="bg-gray-900 border-b border-gray-800 p-4">
+
+    <div class="flex flex-wrap justify-between items-center gap-4">
+
+        <!-- TITLE -->
+
+        <div class="flex flex-wrap items-center gap-3">
 
             <h1 class="text-xl font-bold">
                 🤖 AI Hub & Dataset Collector
             </h1>
 
             <span id="status"
-                class="text-xs bg-green-900/30 text-green-400 px-3 py-2 rounded-full">
+                class="text-xs bg-gray-800 text-green-400 px-3 py-2 rounded-full">
                 ● Ready
             </span>
+
+        </div>
+
+
+        <!-- SETTINGS -->
+
+        <div class="flex flex-wrap items-center gap-3">
+
+            <!-- USAGE -->
 
             <span id="usageCounter"
                 class="text-xs bg-red-900/30 text-red-400 px-3 py-2 rounded-full">
                 Usage: 0/50 today
             </span>
 
-        </div>
 
+            <!-- MEMORY STATUS -->
 
-        <div class="flex items-center gap-3 flex-wrap">
+            <span id="memoryStatus"
+                class="text-xs bg-blue-900/30 text-blue-300 px-3 py-2 rounded-full"
+                title="Conversation memory is stored by the Apps Script backend in Google Drive.">
+                ☁ Cloud Memory
+            </span>
+
 
             <!-- WEB SEARCH -->
 
-            <label class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700">
+            <label id="searchControl"
+                class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700 opacity-40"
+                title="Only available with your personal AI models.">
 
                 <input
                     type="checkbox"
                     id="searchToggle"
-                    checked
+                    disabled
                     class="accent-blue-500">
 
-                Web Search
+                <span>Web Search</span>
 
             </label>
 
@@ -57,17 +113,19 @@
 
             <select
                 id="modelSelect"
-                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm min-w-64 focus:outline-none focus:border-blue-500">
+                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm min-w-64 max-w-full focus:outline-none focus:border-blue-500">
 
 
-                <optgroup label="OpenRouter 100% Free Tier">
+                <!-- OPENROUTER -->
+
+                <optgroup label="OpenRouter - Free Models">
 
                     <option value="or/openrouter/free">
                         OpenRouter: Auto Free Router
                     </option>
 
                     <option value="or/nvidia/nemotron-3-ultra-550b-a55b:free">
-                        OpenRouter: Nemotron 3 Ultra 550B (Free)
+                        OpenRouter: Nemotron 3 Ultra (Free)
                     </option>
 
                     <option value="or/nvidia/nemotron-3.5-super-vl:free">
@@ -81,22 +139,26 @@
                 </optgroup>
 
 
-                <optgroup label="Groq Active Models (Fast)">
+                <!-- GROQ -->
 
-                    <option value="groq/openai/gpt-oss-20b">
+                <optgroup label="Groq - Fast Models">
+
+                    <option value="groq/gpt-oss-20b">
                         Groq: GPT-OSS 20B
                     </option>
 
-                    <option value="groq/openai/gpt-oss-120b">
+                    <option value="groq/gpt-oss-120b">
                         Groq: GPT-OSS 120B (Reasoning)
                     </option>
 
-                    <option value="groq/qwen/qwen3.8-27b">
+                    <option value="groq/qwen3.8-27b">
                         Groq: Qwen 3.8 27B
                     </option>
 
                 </optgroup>
 
+
+                <!-- GEMINI -->
 
                 <optgroup label="Google Gemini">
 
@@ -115,95 +177,153 @@
                 </optgroup>
 
 
-                <optgroup label="Custom Local Training">
+                <!-- PERSONAL AI -->
+
+                <optgroup label="My Personal AI">
 
                     <option value="custom-gemma">
                         My Fine-Tuned Gemma 2B (Colab)
                     </option>
 
+                    <option value="cloudflare-backup">
+                        My AI Backup (Cloudflare Free)
+                    </option>
+
                 </optgroup>
+
 
             </select>
 
         </div>
 
-    </header>
+    </div>
+
+
+    <!-- DESCRIPTION -->
+
+    <div class="mt-3 text-xs text-gray-400">
+
+        Your conversations are sent through Apps Script.
+        Personal AI models can use Web Search and cloud memory.
+
+    </div>
+
+</header>
 
 
 
-    <!-- CHAT -->
+<!-- ================================================= -->
+<!-- CHAT                                               -->
+<!-- ================================================= -->
 
-    <main
-        id="chatContainer"
-        class="flex-1 overflow-y-auto p-6 space-y-5 w-full">
+<main id="chatContainer"
+    class="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 w-full">
 
-        <div class="flex items-start gap-3">
+    <div class="flex items-start gap-3">
 
-            <div class="bg-blue-600 text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0">
-                AI
-            </div>
+        <div class="bg-blue-600 text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0">
+            AI
+        </div>
 
-            <div class="bg-gray-800 border border-gray-700 p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap">
+        <div class="bg-gray-800 border border-gray-700 p-4 rounded-2xl max-w-[90%] md:max-w-[85%] text-sm leading-relaxed">
 
-Welcome to AI Hub!
+            <strong>Welcome to AI Hub!</strong>
 
-Your AI assistant is ready.
+            <br><br>
 
-Select a model, enable Web Search if desired, and start chatting.
+            Your AI assistant is ready.
 
-Your API requests are routed through Google Apps Script.
+            <br><br>
 
-            </div>
+            Choose your AI model above and start chatting.
+
+            <br><br>
+
+            <strong>Cloud Memory:</strong>
+
+            Your Apps Script backend can save conversations in a Google Drive JSONL archive and retrieve relevant past conversations.
+
+            <br><br>
+
+            <strong>Backup AI:</strong>
+
+            Your Cloudflare model runs in the cloud, so you can use it from your tablet or browser without Colab.
 
         </div>
 
-    </main>
+    </div>
+
+</main>
 
 
 
-    <!-- INPUT -->
+<!-- ================================================= -->
+<!-- INPUT                                              -->
+<!-- ================================================= -->
 
-    <footer class="bg-gray-900 border-t border-gray-800 p-4">
+<footer class="bg-gray-900 border-t border-gray-800 p-4">
 
-        <div class="flex gap-3 w-full">
+    <div class="flex gap-3 w-full">
 
-            <textarea
-                id="userInput"
-                rows="1"
-                placeholder="Type your message here..."
-                class="flex-1 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"></textarea>
-
-            <button
-                id="sendBtn"
-                class="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white font-medium px-7 py-3 rounded-xl text-sm transition-colors shrink-0">
-
-                Send
-
-            </button>
-
-        </div>
-
-    </footer>
+        <textarea
+            id="userInput"
+            rows="1"
+            placeholder="Type your message here..."
+            class="flex-1 min-w-0 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"
+        ></textarea>
 
 
+        <button
+            id="sendBtn"
+            class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-3 rounded-xl text-sm transition-colors shrink-0">
+
+            Send
+
+        </button>
+
+    </div>
+
+
+    <div class="max-w-full mt-2 text-xs text-gray-500">
+
+        Enter = Send · Shift + Enter = New Line
+
+    </div>
+
+</footer>
+
+
+
+<!-- ================================================= -->
+<!-- JAVASCRIPT                                         -->
+<!-- ================================================= -->
 
 <script>
 
-// ==================================================
-// 1. CONFIGURATION
-// ==================================================
 
-// YOUR EXISTING GOOGLE APPS SCRIPT URL.
+// ====================================================
+// 1. CONFIGURATION
+// ====================================================
+
+// EXISTING GOOGLE APPS SCRIPT URL
 
 const APPS_SCRIPT_URL =
 "https://script.google.com/macros/s/AKfycbxDaZYcylrw4dps4kfQsosJSThOzRWOiN_07g57b6NddUofisi7Ul19whVwXu6wuM66/exec";
 
+
+// DAILY LIMIT
+
 const DAILY_LIMIT = 50;
 
 
-// ==================================================
-// 2. ELEMENTS
-// ==================================================
+// MEMORY IS ENABLED FOR ALL MODELS
+
+const CLOUD_MEMORY_ENABLED = true;
+
+
+// ====================================================
+// 2. HTML ELEMENTS
+// ====================================================
 
 const chatContainer =
 document.getElementById("chatContainer");
@@ -220,25 +340,83 @@ document.getElementById("modelSelect");
 const searchToggle =
 document.getElementById("searchToggle");
 
+const searchControl =
+document.getElementById("searchControl");
+
 const usageCounter =
 document.getElementById("usageCounter");
 
 const status =
 document.getElementById("status");
 
+const memoryStatus =
+document.getElementById("memoryStatus");
 
-// ==================================================
+
+// ====================================================
 // 3. CONVERSATION MEMORY
-// ==================================================
+// ====================================================
 
 let messages = [];
 
 let isSending = false;
 
 
-// ==================================================
-// 4. USAGE COUNTER
-// ==================================================
+// ====================================================
+// 4. IDENTIFY PERSONAL AI MODELS
+// ====================================================
+
+function isMyAI() {
+
+    return (
+        modelSelect.value === "custom-gemma" ||
+        modelSelect.value === "cloudflare-backup"
+    );
+
+}
+
+
+// ====================================================
+// 5. WEB SEARCH CONTROL
+// ====================================================
+
+function updateSearchAvailability() {
+
+    const available = isMyAI();
+
+    searchToggle.disabled = !available;
+
+    if (!available) {
+
+        searchToggle.checked = false;
+
+    }
+
+    searchControl.classList.toggle(
+        "opacity-40",
+        !available
+    );
+
+    searchControl.title = available
+
+        ? "Web Search is available with your personal AI."
+
+        : "Web Search is only available with your personal AI.";
+
+}
+
+
+// WHEN THE MODEL CHANGES
+
+modelSelect.addEventListener(
+    "change",
+    updateSearchAvailability
+);
+
+
+// ====================================================
+// 6. DAILY USAGE COUNTER
+// ====================================================
 
 function getToday() {
 
@@ -258,7 +436,9 @@ function getUsage() {
     try {
 
         const saved = JSON.parse(
+
             localStorage.getItem("ai_chat_usage") || "{}"
+
         );
 
         if (saved.date !== getToday()) {
@@ -284,7 +464,7 @@ function getUsage() {
 }
 
 
-function updateUsage() {
+function updateUsageDisplay() {
 
     const usage = getUsage();
 
@@ -294,25 +474,28 @@ function updateUsage() {
 }
 
 
-function recordUsage() {
+function incrementUsage() {
 
     const usage = getUsage();
 
     usage.count++;
 
     localStorage.setItem(
+
         "ai_chat_usage",
+
         JSON.stringify(usage)
+
     );
 
-    updateUsage();
+    updateUsageDisplay();
 
 }
 
 
-// ==================================================
-// 5. STATUS DISPLAY
-// ==================================================
+// ====================================================
+// 7. STATUS DISPLAY
+// ====================================================
 
 function setStatus(message, color) {
 
@@ -324,9 +507,9 @@ function setStatus(message, color) {
 }
 
 
-// ==================================================
-// 6. MESSAGE DISPLAY
-// ==================================================
+// ====================================================
+// 8. MESSAGE DISPLAY
+// ====================================================
 
 function appendMessage(role, content) {
 
@@ -338,6 +521,9 @@ function appendMessage(role, content) {
     wrapper.className =
         `flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`;
 
+
+    // AVATAR
+
     const avatar =
         document.createElement("div");
 
@@ -347,13 +533,20 @@ function appendMessage(role, content) {
     avatar.innerText =
         isUser ? "You" : "AI";
 
+
+    // MESSAGE BUBBLE
+
     const bubble =
         document.createElement("div");
 
     bubble.className =
-        `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap break-words`;
+        `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} message-bubble p-4 rounded-2xl max-w-[90%] md:max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap`;
+
+
+    // SAFE TEXT OUTPUT
 
     bubble.textContent = content;
+
 
     wrapper.appendChild(avatar);
 
@@ -361,34 +554,50 @@ function appendMessage(role, content) {
 
     chatContainer.appendChild(wrapper);
 
+
+    // SCROLL DOWN
+
     chatContainer.scrollTop =
         chatContainer.scrollHeight;
+
 
     return wrapper;
 
 }
 
 
-// ==================================================
-// 7. EXTRACT RESPONSE
-// ==================================================
+// ====================================================
+// 9. RESPONSE EXTRACTION
+// ====================================================
 
 function extractReply(data) {
 
     if (data.error) {
 
-        throw new Error(data.error);
+        throw new Error(
+
+            typeof data.error === "string"
+
+                ? data.error
+
+                : data.error.message || "Unknown server error."
+
+        );
 
     }
 
+
     if (
+
         data.choices &&
         data.choices[0] &&
         data.choices[0].message
+
     ) {
 
         const content =
             data.choices[0].message.content;
+
 
         if (typeof content === "string") {
 
@@ -396,47 +605,57 @@ function extractReply(data) {
 
         }
 
+
         if (Array.isArray(content)) {
 
             return content.map(
+
                 part => part.text || ""
+
             ).join("");
 
         }
 
     }
 
+
     throw new Error(
-        "The server returned an unexpected response."
+        "Unexpected response from the AI server."
     );
 
 }
 
 
-// ==================================================
-// 8. SEND MESSAGE
-// ==================================================
+// ====================================================
+// 10. SEND MESSAGE
+// ====================================================
 
 async function handleSend() {
 
     if (isSending) return;
 
+
     const text =
         userInput.value.trim();
+
 
     if (!text) return;
 
 
-    // DAILY LIMIT CHECK
+    // CHECK DAILY LIMIT
 
     if (getUsage().count >= DAILY_LIMIT) {
 
-        alert("Daily usage limit of 50 reached!");
+        alert(
+            "Daily usage limit of 50 reached!"
+        );
 
         return;
 
     }
 
+
+    // LOCK SEND BUTTON
 
     isSending = true;
 
@@ -451,6 +670,7 @@ async function handleSend() {
 
     appendMessage("user", text);
 
+
     messages.push({
 
         role: "user",
@@ -460,12 +680,17 @@ async function handleSend() {
     });
 
 
-    // READ SETTINGS
+    // SELECTED MODEL
 
     const selectedModel =
         modelSelect.value;
 
+
+    // SEARCH CAN ONLY BE USED WITH PERSONAL AI
+
     const useSearch =
+
+        isMyAI() &&
         searchToggle.checked;
 
 
@@ -483,26 +708,29 @@ async function handleSend() {
         );
 
 
-        // REQUEST DATA
+        // REQUEST BODY
 
         const payload = {
 
             model: selectedModel,
 
+            messages: messages,
+
             useSearch: useSearch,
 
-            messages: messages,
+            useMemory: CLOUD_MEMORY_ENABLED,
 
             logToSheet: true
 
         };
 
 
-        // POST REQUEST
-        // text/plain avoids the JSON preflight request.
+        // SEND TO GOOGLE APPS SCRIPT
 
         const response = await fetch(
+
             APPS_SCRIPT_URL,
+
             {
 
                 method: "POST",
@@ -517,8 +745,11 @@ async function handleSend() {
                 body: JSON.stringify(payload)
 
             }
+
         );
 
+
+        // GET SERVER RESPONSE
 
         const rawText =
             await response.text();
@@ -533,7 +764,9 @@ async function handleSend() {
         } catch {
 
             throw new Error(
-                "Apps Script returned non-JSON data. Check your deployment."
+
+                "Apps Script returned non-JSON data. Check the deployment."
+
             );
 
         }
@@ -542,27 +775,29 @@ async function handleSend() {
         if (!response.ok) {
 
             throw new Error(
-                "HTTP error: " + response.status
+                "HTTP error " + response.status
             );
 
         }
 
 
+        // EXTRACT RESPONSE
+
         const reply =
             extractReply(data);
 
 
-        // REMOVE THINKING MESSAGE
+        // REMOVE LOADING MESSAGE
 
         loadingMessage.remove();
 
 
-        // DISPLAY REPLY
+        // DISPLAY AI MESSAGE
 
         appendMessage("assistant", reply);
 
 
-        // SAVE CONVERSATION
+        // SAVE TO CURRENT CHAT MEMORY
 
         messages.push({
 
@@ -573,12 +808,43 @@ async function handleSend() {
         });
 
 
-        // COUNT SUCCESSFUL REQUEST
+        // UPDATE COUNTER
 
-        recordUsage();
+        incrementUsage();
 
 
-        // SHOW SEARCH WARNINGS
+        // CLOUD MEMORY STATUS
+
+        if (data.memorySaved === true) {
+
+            memoryStatus.innerText =
+                "☁ Cloud Memory: Saved";
+
+            memoryStatus.className =
+                "text-xs bg-green-900/30 text-green-300 px-3 py-2 rounded-full";
+
+        } else if (data.memoryWarning) {
+
+            memoryStatus.innerText =
+                "☁ Cloud Memory: Error";
+
+            memoryStatus.className =
+                "text-xs bg-red-900/30 text-red-300 px-3 py-2 rounded-full";
+
+            appendMessage(
+                "assistant",
+                "⚠️ Memory warning: " + data.memoryWarning
+            );
+
+        } else {
+
+            memoryStatus.innerText =
+                "☁ Cloud Memory: Not confirmed";
+
+        }
+
+
+        // SEARCH WARNING
 
         if (data.searchWarning) {
 
@@ -590,7 +856,7 @@ async function handleSend() {
         }
 
 
-        // SHOW LOGGING WARNINGS
+        // GOOGLE SHEETS WARNING
 
         if (data.loggingWarning) {
 
@@ -602,6 +868,8 @@ async function handleSend() {
         }
 
 
+        // CONNECTION STATUS
+
         setStatus(
             "Connected",
             "text-green-400"
@@ -612,18 +880,27 @@ async function handleSend() {
 
         loadingMessage.remove();
 
+
         appendMessage(
+
             "assistant",
+
             "⚠️ Error: " + error.message
+
         );
+
 
         setStatus(
             "Connection Error",
             "text-red-400"
         );
 
+
         console.error(error);
 
+
+        memoryStatus.innerText =
+            "☁ Cloud Memory: Unconfirmed";
 
     } finally {
 
@@ -640,26 +917,34 @@ async function handleSend() {
 }
 
 
-// ==================================================
-// 9. BUTTON EVENTS
-// ==================================================
+// ====================================================
+// 11. SEND BUTTON
+// ====================================================
 
 sendBtn.addEventListener(
+
     "click",
+
     handleSend
+
 );
 
 
-// ENTER = SEND
-// SHIFT + ENTER = NEW LINE
+// ====================================================
+// 12. KEYBOARD SHORTCUTS
+// ====================================================
 
 userInput.addEventListener(
+
     "keydown",
+
     function(event) {
 
         if (
+
             event.key === "Enter" &&
             !event.shiftKey
+
         ) {
 
             event.preventDefault();
@@ -669,14 +954,37 @@ userInput.addEventListener(
         }
 
     }
+
 );
 
 
-// ==================================================
-// 10. INITIALIZATION
-// ==================================================
+// ====================================================
+// 13. AUTOMATIC TEXTAREA RESIZING
+// ====================================================
 
-updateUsage();
+userInput.addEventListener(
+
+    "input",
+
+    function() {
+
+        this.style.height = "auto";
+
+        this.style.height =
+            Math.min(this.scrollHeight, 180) + "px";
+
+    }
+
+);
+
+
+// ====================================================
+// 14. INITIALIZATION
+// ====================================================
+
+updateUsageDisplay();
+
+updateSearchAvailability();
 
 setStatus(
     "Ready",
