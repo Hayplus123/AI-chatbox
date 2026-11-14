@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Custom AI Hub</title>
+  <title>My AI Training Chat</title>
   <style>
     :root {
       --bg: #0f1117;
@@ -16,28 +16,17 @@
       --ai-bubble: #1e222d;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+    body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-    /* Sidebar */
-    .sidebar {
-      width: 280px; background: var(--panel); border-right: 1px solid var(--border);
-      padding: 20px; display: flex; flex-direction: column; gap: 16px;
+    /* Header */
+    header {
+      padding: 16px 24px; background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
     }
-    .sidebar h2 { font-size: 1.1rem; font-weight: 600; }
-    label { font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 6px; }
-    select, input, button {
-      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
-      background: var(--bg); color: var(--text); font-size: 0.9rem;
-    }
-    select:focus, input:focus { outline: none; border-color: var(--accent); }
-    button.primary { background: var(--accent); border: none; font-weight: 600; cursor: pointer; }
-    button.primary:hover { opacity: 0.9; }
-    button.secondary { background: transparent; cursor: pointer; color: var(--muted); }
-    button.secondary:hover { color: var(--text); border-color: var(--muted); }
-    .status { font-size: 0.78rem; color: #4ade80; min-height: 18px; }
+    header h1 { font-size: 1.1rem; font-weight: 600; }
+    .status-badge { font-size: 0.75rem; color: #4ade80; background: rgba(74, 222, 128, 0.1); padding: 4px 10px; border-radius: 20px; }
 
     /* Chat Area */
-    .main { flex: 1; display: flex; flex-direction: column; }
     .chat-box { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
     .msg { max-width: 75%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
     .msg.user { align-self: flex-end; background: var(--user-bubble); color: #fff; border-bottom-right-radius: 2px; }
@@ -46,118 +35,41 @@
 
     /* Input Bar */
     .input-bar { padding: 16px 24px; background: var(--panel); border-top: 1px solid var(--border); display: flex; gap: 12px; }
-    .input-bar input { flex: 1; padding: 12px 16px; }
-    .input-bar button { width: auto; padding: 0 24px; }
-
-    @media (max-width: 700px) {
-      body { flex-direction: column; }
-      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 12px; }
-    }
+    .input-bar input { flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.9rem; }
+    .input-bar input:focus { outline: none; border-color: var(--accent); }
+    .input-bar button { padding: 0 24px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+    .input-bar button:hover { opacity: 0.9; }
   </style>
 </head>
 <body>
 
-  <!-- Settings & Model Selector Sidebar -->
-  <aside class="sidebar">
-    <h2>AI Model Hub</h2>
+  <header>
+    <h1>AI Dataset Collector</h1>
+    <span class="status-badge">● Auto-Logging Active</span>
+  </header>
 
-    <div>
-      <label for="modelSelect">Active Model / Backend</label>
-      <select id="modelSelect">
-        <option value="appscript">Google Apps Script (Gemini + Auto-Log)</option>
-        <option value="custom-gemma">My Fine-Tuned Gemma 2B (Colab)</option>
-        <option value="grok">Grok 4.7 (xAI)</option>
-        <option value="gemini">Gemini Direct (Google API Key)</option>
-      </select>
+  <main class="chat-box" id="chatBox">
+    <div class="msg assistant">
+      <span class="tag">System</span>
+      <span class="body">Ready. Every message you send and receive is automatically logged to your spreadsheet.</span>
     </div>
-
-    <div id="urlGroup">
-      <label id="urlLabel" for="endpointUrl">Apps Script Web App URL</label>
-      <input type="text" id="endpointUrl" placeholder="https://script.google.com/.../exec" />
-    </div>
-
-    <div id="apiKeyGroup" style="display: none;">
-      <label for="apiKey">API Key (Stored Locally)</label>
-      <input type="password" id="apiKey" placeholder="Paste API key..." />
-    </div>
-
-    <button class="primary" id="saveBtn">Save Settings</button>
-    <button class="secondary" id="clearBtn">Clear Chat</button>
-    <div class="status" id="statusText"></div>
-  </aside>
-
-  <!-- Main Chat Window -->
-  <main class="main">
-    <div class="chat-box" id="chatBox">
-      <div class="msg assistant">
-        <span class="tag">System</span>
-        <span class="body">Ready! Paste your Apps Script Web App URL on the left and start chatting to log your data live.</span>
-      </div>
-    </div>
-
-    <form class="input-bar" id="chatForm">
-      <input type="text" id="userInput" placeholder="Ask your model anything..." autocomplete="off" required />
-      <button type="submit" class="primary" id="sendBtn">Send</button>
-    </form>
   </main>
 
+  <form class="input-bar" id="chatForm">
+    <input type="text" id="userInput" placeholder="Type your message here..." autocomplete="off" required autofocus />
+    <button type="submit" id="sendBtn">Send</button>
+  </form>
+
   <script>
-    const modelSelect = document.getElementById("modelSelect");
-    const urlGroup = document.getElementById("urlGroup");
-    const urlLabel = document.getElementById("urlLabel");
-    const endpointUrlInput = document.getElementById("endpointUrl");
-    const apiKeyGroup = document.getElementById("apiKeyGroup");
-    const apiKeyInput = document.getElementById("apiKey");
-    const statusText = document.getElementById("statusText");
+    // 👇 PASTE YOUR APPS SCRIPT WEB APP URL HERE ONCE
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxDaZYcylrw4dps4kfQsosJSThOzRWOiN_07g57b6NddUofisi7Ul19whVwXu6wuM66/exec";
+
     const chatBox = document.getElementById("chatBox");
     const chatForm = document.getElementById("chatForm");
     const userInput = document.getElementById("userInput");
     const sendBtn = document.getElementById("sendBtn");
 
     let conversation = [];
-
-    // Load saved settings from localStorage
-    function updateSidebarFields() {
-      const m = modelSelect.value;
-      if (m === "appscript") {
-        urlGroup.style.display = "block";
-        urlLabel.textContent = "Apps Script Web App URL";
-        endpointUrlInput.placeholder = "https://script.google.com/.../exec";
-        endpointUrlInput.value = localStorage.getItem("appscript_url") || "";
-        apiKeyGroup.style.display = "none";
-      } else if (m === "custom-gemma") {
-        urlGroup.style.display = "block";
-        urlLabel.textContent = "Custom Gemma Tunnel URL";
-        endpointUrlInput.placeholder = "https://....trycloudflare.com/v1/chat/completions";
-        endpointUrlInput.value = localStorage.getItem("custom_gemma_url") || "";
-        apiKeyGroup.style.display = "none";
-      } else {
-        urlGroup.style.display = "none";
-        apiKeyGroup.style.display = "block";
-        apiKeyInput.value = localStorage.getItem("key_" + m) || "";
-      }
-    }
-
-    modelSelect.addEventListener("change", updateSidebarFields);
-    updateSidebarFields();
-
-    document.getElementById("saveBtn").addEventListener("click", () => {
-      const m = modelSelect.value;
-      if (m === "appscript") {
-        localStorage.setItem("appscript_url", endpointUrlInput.value.trim());
-      } else if (m === "custom-gemma") {
-        localStorage.setItem("custom_gemma_url", endpointUrlInput.value.trim());
-      } else {
-        localStorage.setItem("key_" + m, apiKeyInput.value.trim());
-      }
-      statusText.textContent = "Settings saved!";
-      setTimeout(() => { statusText.textContent = ""; }, 2500);
-    });
-
-    document.getElementById("clearBtn").addEventListener("click", () => {
-      conversation = [];
-      chatBox.innerHTML = "";
-    });
 
     function appendMessage(role, text, label) {
       const div = document.createElement("div");
@@ -175,67 +87,7 @@
       div.appendChild(bodySpan);
       chatBox.appendChild(div);
       chatBox.scrollTop = chatBox.scrollHeight;
-      return { div, tagSpan, bodySpan };
-    }
-
-    // Unified Model Router
-    async function queryModel(modelType, messages) {
-      if (modelType === "appscript") {
-        const url = endpointUrlInput.value.trim();
-        if (!url) throw new Error("Paste your Apps Script Web App URL in the sidebar first.");
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" }, // Avoids CORS preflight issues with Apps Script
-          body: JSON.stringify({ messages: messages })
-        });
-        if (!res.ok) throw new Error("Endpoint returned HTTP " + res.status);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        return data.choices[0].message.content;
-      }
-
-      if (modelType === "custom-gemma") {
-        const url = endpointUrlInput.value.trim();
-        if (!url) throw new Error("Paste your Cloudflare Tunnel URL in the sidebar first.");
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: messages, max_tokens: 256 })
-        });
-        if (!res.ok) throw new Error("Endpoint returned HTTP " + res.status);
-        const data = await res.json();
-        return data.choices[0].message.content;
-      }
-
-      if (modelType === "grok") {
-        const key = apiKeyInput.value.trim();
-        if (!key) throw new Error("Enter your xAI Grok API key in the sidebar.");
-        const res = await fetch("https://api.x.ai/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
-          body: JSON.stringify({ model: "grok-4.7", messages: messages })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error((data.error && data.error.message) || "HTTP " + res.status);
-        return data.choices[0].message.content;
-      }
-
-      if (modelType === "gemini") {
-        const key = apiKeyInput.value.trim();
-        if (!key) throw new Error("Enter your Gemini API key in the sidebar.");
-        const contents = messages.map(m => ({
-          role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: m.content }]
-        }));
-        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-          body: JSON.stringify({ contents: contents })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error((data.error && data.error.message) || "HTTP " + res.status);
-        return data.candidates[0].content.parts[0].text;
-      }
+      return { tagSpan, bodySpan };
     }
 
     chatForm.addEventListener("submit", async (e) => {
@@ -243,24 +95,31 @@
       const text = userInput.value.trim();
       if (!text) return;
 
-      const selectedModel = modelSelect.value;
-      const modelLabel = modelSelect.options[modelSelect.selectedIndex].text;
-
       userInput.value = "";
       sendBtn.disabled = true;
       appendMessage("user", text, "You");
       conversation.push({ role: "user", content: text });
 
-      const loading = appendMessage("assistant", "Thinking...", modelLabel);
+      const loading = appendMessage("assistant", "Thinking...", "Gemini");
 
       try {
-        const reply = await queryModel(selectedModel, conversation);
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ messages: conversation })
+        });
+
+        if (!res.ok) throw new Error("Server returned HTTP " + res.status);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        const reply = data.choices[0].message.content;
         loading.bodySpan.textContent = reply;
         conversation.push({ role: "assistant", content: reply });
       } catch (err) {
         loading.tagSpan.textContent = "Error";
         loading.bodySpan.textContent = err.message;
-        conversation.pop();
+        conversation.pop(); // Remove failed user message from history array
       } finally {
         sendBtn.disabled = false;
         userInput.focus();
