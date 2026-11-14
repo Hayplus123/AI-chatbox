@@ -62,17 +62,18 @@
     <h2>AI Model Hub</h2>
 
     <div>
-      <label for="modelSelect">Active Model</label>
+      <label for="modelSelect">Active Model / Backend</label>
       <select id="modelSelect">
+        <option value="appscript">Google Apps Script (Gemini + Auto-Log)</option>
         <option value="custom-gemma">My Fine-Tuned Gemma 2B (Colab)</option>
         <option value="grok">Grok 4.7 (xAI)</option>
-        <option value="gemini">Gemini 3.8 Flash (Google)</option>
+        <option value="gemini">Gemini Direct (Google API Key)</option>
       </select>
     </div>
 
-    <div id="endpointGroup">
-      <label for="customUrl">Custom Gemma Endpoint URL</label>
-      <input type="text" id="customUrl" placeholder="https://....trycloudflare.com/v1/chat/completions" />
+    <div id="urlGroup">
+      <label id="urlLabel" for="endpointUrl">Apps Script Web App URL</label>
+      <input type="text" id="endpointUrl" placeholder="https://script.google.com/.../exec" />
     </div>
 
     <div id="apiKeyGroup" style="display: none;">
@@ -90,7 +91,7 @@
     <div class="chat-box" id="chatBox">
       <div class="msg assistant">
         <span class="tag">System</span>
-        <span class="body">Ready! Select your model on the left, paste your Colab Tunnel URL, and send a message.</span>
+        <span class="body">Ready! Paste your Apps Script Web App URL on the left and start chatting to log your data live.</span>
       </div>
     </div>
 
@@ -102,9 +103,10 @@
 
   <script>
     const modelSelect = document.getElementById("modelSelect");
-    const endpointGroup = document.getElementById("endpointGroup");
+    const urlGroup = document.getElementById("urlGroup");
+    const urlLabel = document.getElementById("urlLabel");
+    const endpointUrlInput = document.getElementById("endpointUrl");
     const apiKeyGroup = document.getElementById("apiKeyGroup");
-    const customUrlInput = document.getElementById("customUrl");
     const apiKeyInput = document.getElementById("apiKey");
     const statusText = document.getElementById("statusText");
     const chatBox = document.getElementById("chatBox");
@@ -115,20 +117,36 @@
     let conversation = [];
 
     // Load saved settings from localStorage
-    customUrlInput.value = localStorage.getItem("custom_gemma_url") || "";
     function updateSidebarFields() {
       const m = modelSelect.value;
-      endpointGroup.style.display = m === "custom-gemma" ? "block" : "none";
-      apiKeyGroup.style.display = m !== "custom-gemma" ? "block" : "none";
-      apiKeyInput.value = localStorage.getItem("key_" + m) || "";
+      if (m === "appscript") {
+        urlGroup.style.display = "block";
+        urlLabel.textContent = "Apps Script Web App URL";
+        endpointUrlInput.placeholder = "https://script.google.com/.../exec";
+        endpointUrlInput.value = localStorage.getItem("appscript_url") || "";
+        apiKeyGroup.style.display = "none";
+      } else if (m === "custom-gemma") {
+        urlGroup.style.display = "block";
+        urlLabel.textContent = "Custom Gemma Tunnel URL";
+        endpointUrlInput.placeholder = "https://....trycloudflare.com/v1/chat/completions";
+        endpointUrlInput.value = localStorage.getItem("custom_gemma_url") || "";
+        apiKeyGroup.style.display = "none";
+      } else {
+        urlGroup.style.display = "none";
+        apiKeyGroup.style.display = "block";
+        apiKeyInput.value = localStorage.getItem("key_" + m) || "";
+      }
     }
+
     modelSelect.addEventListener("change", updateSidebarFields);
     updateSidebarFields();
 
     document.getElementById("saveBtn").addEventListener("click", () => {
       const m = modelSelect.value;
-      if (m === "custom-gemma") {
-        localStorage.setItem("custom_gemma_url", customUrlInput.value.trim());
+      if (m === "appscript") {
+        localStorage.setItem("appscript_url", endpointUrlInput.value.trim());
+      } else if (m === "custom-gemma") {
+        localStorage.setItem("custom_gemma_url", endpointUrlInput.value.trim());
       } else {
         localStorage.setItem("key_" + m, apiKeyInput.value.trim());
       }
@@ -141,7 +159,6 @@
       chatBox.innerHTML = "";
     });
 
-    // Safe DOM message builder (no regex escaping needed)
     function appendMessage(role, text, label) {
       const div = document.createElement("div");
       div.className = "msg " + role;
@@ -161,10 +178,24 @@
       return { div, tagSpan, bodySpan };
     }
 
-    // Unified Model Router (handles Custom Gemma, Grok 4.7, and Gemini 3.8 Flash)
+    // Unified Model Router
     async function queryModel(modelType, messages) {
+      if (modelType === "appscript") {
+        const url = endpointUrlInput.value.trim();
+        if (!url) throw new Error("Paste your Apps Script Web App URL in the sidebar first.");
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" }, // Avoids CORS preflight issues with Apps Script
+          body: JSON.stringify({ messages: messages })
+        });
+        if (!res.ok) throw new Error("Endpoint returned HTTP " + res.status);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        return data.choices[0].message.content;
+      }
+
       if (modelType === "custom-gemma") {
-        const url = customUrlInput.value.trim();
+        const url = endpointUrlInput.value.trim();
         if (!url) throw new Error("Paste your Cloudflare Tunnel URL in the sidebar first.");
         const res = await fetch(url, {
           method: "POST",
@@ -181,10 +212,7 @@
         if (!key) throw new Error("Enter your xAI Grok API key in the sidebar.");
         const res = await fetch("https://api.x.ai/v1/chat/completions", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + key
-          },
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + key },
           body: JSON.stringify({ model: "grok-4.7", messages: messages })
         });
         const data = await res.json();
@@ -199,12 +227,9 @@
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: m.content }]
         }));
-        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": key
-          },
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
           body: JSON.stringify({ contents: contents })
         });
         const data = await res.json();
