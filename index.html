@@ -39,7 +39,7 @@
         <div class="flex items-start gap-3">
             <div class="bg-blue-600 text-white rounded-full h-8 w-8 flex items-center justify-center font-bold shrink-0 text-xs">AI</div>
             <div class="bg-gray-800 border border-gray-700 p-3.5 rounded-2xl max-w-[80%] text-sm leading-relaxed">
-                Ready! Web Search is ON by default. Select your model, type a message, and watch it log directly to your Google Sheet!
+                Ready! Web Search is ON by default. Type a message and watch it log directly to your Google Sheet!
             </div>
         </div>
     </main>
@@ -83,7 +83,7 @@
                 return false;
             }
             usageData.count++;
-            localStorage.setItem("ai_chat_usage", JSON.stringify(usageData));
+            localStorage.setItem("ai_usage", JSON.stringify(usageData));
             document.getElementById("usageCounter").innerText = `Usage: ${usageData.count}/50 today`;
             return true;
         }
@@ -113,7 +113,6 @@
             const loadingId = appendMessage("assistant", "Thinking...");
 
             try {
-                // Construct GET request with URL-encoded JSON payload to bypass CORS completely
                 const payload = {
                     model: selectedModel,
                     useSearch: useSearch,
@@ -122,7 +121,6 @@
                 };
 
                 const targetUrl = APPS_SCRIPT_URL + "?data=" + encodeURIComponent(JSON.stringify(payload));
-
                 const response = await fetch(targetUrl, { method: "GET" });
                 const rawText = await response.text();
                 removeMessage(loadingId);
