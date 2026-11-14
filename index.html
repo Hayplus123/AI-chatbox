@@ -214,14 +214,9 @@
                     My Fine-Tuned Gemma 2B (Colab)
                 </option>
 
-                <option
-                    value="cloudflare-backup"
-                    disabled
-                    data-automatic-only="true">
-
-                    Cloudflare AI (Automatic Backup)
-
-                </option>
+                <option value="cloudflare-backup">
+    Cloudflare AI (My Backup Model)
+</option>
 
             </optgroup>
 
@@ -454,11 +449,10 @@ function getModelLabel(model) {
 // ====================================================
 
 function isMyAI() {
-
     return (
-        modelSelect.value === "custom-gemma"
+        modelSelect.value === "custom-gemma" ||
+        modelSelect.value === "cloudflare-backup"
     );
-
 }
 
 
@@ -806,18 +800,11 @@ function applyModelStates(modelStates) {
             option.dataset.baseLabel || option.textContent;
 
 
-        const automaticOnly =
-            option.dataset.automaticOnly === "true";
+const failure = failed[model];
 
+// Only disable models that actually failed.
 
-        const failure =
-            failed[model];
-
-
-        // FAILED MODELS ARE DISABLED UNTIL MIDNIGHT.
-
-        option.disabled =
-            automaticOnly || Boolean(failure);
+option.disabled = Boolean(failure);
 
 
         if (failure) {
