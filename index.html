@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Custom AI Hub</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #181b23;
+      --border: #2a2f3d;
+      --text: #e6e8ef;
+      --muted: #8b92a5;
+      --accent: #4f8cff;
+      --user-bubble: #2563eb;
+      --ai-bubble: #1e222d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px; background: var(--panel); border-right: 1px solid var(--border);
+      padding: 20px; display: flex; flex-direction: column; gap: 16px;
+    }
+    .sidebar h2 { font-size: 1.1rem; font-weight: 600; }
+    label { font-size: 0.8rem; color: var(--muted); display: block; margin-bottom: 6px; }
+    select, input, button {
+      width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--text); font-size: 0.9rem;
+    }
+    select:focus, input:focus { outline: none; border-color: var(--accent); }
+    button.primary { background: var(--accent); border: none; font-weight: 600; cursor: pointer; }
+    button.primary:hover { opacity: 0.9; }
+    button.secondary { background: transparent; cursor: pointer; color: var(--muted); }
+    button.secondary:hover { color: var(--text); border-color: var(--muted); }
+    .status { font-size: 0.78rem; color: #4ade80; min-height: 18px; }
+
+    /* Chat Area */
+    .main { flex: 1; display: flex; flex-direction: column; }
+    .chat-box { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+    .msg { max-width: 75%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+    .msg.user { align-self: flex-end; background: var(--user-bubble); color: #fff; border-bottom-right-radius: 2px; }
+    .msg.assistant { align-self: flex-start; background: var(--ai-bubble); border: 1px solid var(--border); border-bottom-left-radius: 2px; }
+    .msg .tag { font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; display: block; }
+
+    /* Input Bar */
+    .input-bar { padding: 16px 24px; background: var(--panel); border-top: 1px solid var(--border); display: flex; gap: 12px; }
+    .input-bar input { flex: 1; padding: 12px 16px; }
+    .input-bar button { width: auto; padding: 0 24px; }
+
+    @media (max-width: 700px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Settings & Model Selector Sidebar -->
+  <aside class="sidebar">
+    <h2>AI Model Hub</h2>
+
+    <div>
+      <label for="modelSelect">Active Model</label>
+      <select id="modelSelect">
+        <option value="custom-gemma">My Fine-Tuned Gemma 2B (Colab)</option>
+        <option value="grok">Grok 4.7 (xAI)</option>
+        <option value="gemini">Gemini 3.8 Flash (Google)</option>
+      </select>
+    </div>
+
+    <div id="endpointGroup">
+      <label for="customUrl">Custom Gemma Endpoint URL</label>
+      <input type="text" id="customUrl" placeholder="https://....trycloudflare.com/v1/chat/completions" />
+    </div>
+
+    <div id="apiKeyGroup" style="display: none;">
+      <label for="apiKey">API Key (Stored Locally)</label>
+      <input type="password" id="apiKey" placeholder="Paste API key..." />
+    </div>
+
+    <button class="primary" id="saveBtn">Save Settings</button>
+    <button class="secondary" id="clearBtn">Clear Chat</button>
+    <div class="status" id="statusText"></div>
+  </aside>
+
+  <!-- Main Chat Window -->
+  <main class="main">
+    <div class="chat-box" id="chatBox">
+      <div class="msg assistant">
+        <span class="tag">System</span>
+        <span class="body">Ready! Select your model on the left, paste your Colab Tunnel URL, and send a message.</span>
+      </div>
+    </div>
+
+    <form class="input-bar" id="chatForm">
+      <input type="text" id="userInput" placeholder="Ask your model anything..." autocomplete="off" required />
+      <button type="submit" class="primary" id="sendBtn">Send</button>
+    </form>
+  </main>
+
+  <script>
+    const modelSelect = document.getElementById("modelSelect");
+    const endpointGroup = document.getElementById("endpointGroup");
+    const apiKeyGroup = document.getElementById("apiKeyGroup");
+    const customUrlInput = document.getElementById("customUrl");
+    const apiKeyInput = document.getElementById("apiKey");
+    const statusText = document.getElementById("statusText");
+    const chatBox = document.getElementById("chatBox");
+    const chatForm = document.getElementById("chatForm");
+    const userInput = document.getElementById("userInput");
+    const sendBtn = document.getElementById("sendBtn");
+
+    let conversation = [];
+
+    // Load saved settings from localStorage
+    customUrlInput.value = localStorage.getItem("custom_gemma_url") || "";
+    function updateSidebarFields() {
+      const m = modelSelect.value;
+      endpointGroup.style.display = m === "custom-gemma" ? "block" : "none";
+      apiKeyGroup.style.display = m !== "custom-gemma" ? "block" : "none";
+      apiKeyInput.value = localStorage.getItem("key_" + m) || "";
+    }
+    modelSelect.addEventListener("change", updateSidebarFields);
+    updateSidebarFields();
+
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      const m = modelSelect.value;
+      if (m === "custom-gemma") {
+        localStorage.setItem("custom_gemma_url", customUrlInput.value.trim());
+      } else {
+        localStorage.setItem("key_" + m, apiKeyInput.value.trim());
+      }
+      statusText.textContent = "Settings saved!";
+      setTimeout(() => { statusText.textContent = ""; }, 2500);
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      conversation = [];
+      chatBox.innerHTML = "";
+    });
+
+    // Safe DOM message builder (no regex escaping needed)
+    function appendMessage(role, text, label) {
+      const div = document.createElement("div");
+      div.className = "msg " + role;
+
+      const tagSpan = document.createElement("span");
+      tagSpan.className = "tag";
+      tagSpan.textContent = label;
+
+      const bodySpan = document.createElement("span");
+      bodySpan.className = "body";
+      bodySpan.textContent = text;
+
+      div.appendChild(tagSpan);
+      div.appendChild(bodySpan);
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+      return { div, tagSpan, bodySpan };
+    }
+
+    // Unified Model Router (handles Custom Gemma, Grok 4.7, and Gemini 3.8 Flash)
+    async function queryModel(modelType, messages) {
+      if (modelType === "custom-gemma") {
+        const url = customUrlInput.value.trim();
+        if (!url) throw new Error("Paste your Cloudflare Tunnel URL in the sidebar first.");
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: messages, max_tokens: 256 })
+        });
+        if (!res.ok) throw new Error("Endpoint returned HTTP " + res.status);
+        const data = await res.json();
+        return data.choices[0].message.content;
+      }
+
+      if (modelType === "grok") {
+        const key = apiKeyInput.value.trim();
+        if (!key) throw new Error("Enter your xAI Grok API key in the sidebar.");
+        const res = await fetch("https://api.x.ai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + key
+          },
+          body: JSON.stringify({ model: "grok-4.7", messages: messages })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error((data.error && data.error.message) || "HTTP " + res.status);
+        return data.choices[0].message.content;
+      }
+
+      if (modelType === "gemini") {
+        const key = apiKeyInput.value.trim();
+        if (!key) throw new Error("Enter your Gemini API key in the sidebar.");
+        const contents = messages.map(m => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: m.content }]
+        }));
+        const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": key
+          },
+          body: JSON.stringify({ contents: contents })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error((data.error && data.error.message) || "HTTP " + res.status);
+        return data.candidates[0].content.parts[0].text;
+      }
+    }
+
+    chatForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = userInput.value.trim();
+      if (!text) return;
+
+      const selectedModel = modelSelect.value;
+      const modelLabel = modelSelect.options[modelSelect.selectedIndex].text;
+
+      userInput.value = "";
+      sendBtn.disabled = true;
+      appendMessage("user", text, "You");
+      conversation.push({ role: "user", content: text });
+
+      const loading = appendMessage("assistant", "Thinking...", modelLabel);
+
+      try {
+        const reply = await queryModel(selectedModel, conversation);
+        loading.bodySpan.textContent = reply;
+        conversation.push({ role: "assistant", content: reply });
+      } catch (err) {
+        loading.tagSpan.textContent = "Error";
+        loading.bodySpan.textContent = err.message;
+        conversation.pop();
+      } finally {
+        sendBtn.disabled = false;
+        userInput.focus();
+      }
+    });
+  </script>
+</body>
+</html>
