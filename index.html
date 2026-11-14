@@ -1,190 +1,619 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Model AI Hub & Dataset Collector</title>
+    <title>AI Hub & Dataset Collector</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-gray-100 flex flex-col h-screen">
-    <!-- Header -->
-    <header class="bg-gray-800 border-b border-gray-700 p-4 flex flex-wrap justify-between items-center gap-3">
-        <h1 class="text-xl font-bold flex items-center gap-2">🤖 AI Hub & Dataset Collector</h1>
+
+<body class="bg-gray-950 text-gray-100 flex flex-col h-screen">
+
+    <!-- HEADER -->
+    <header class="bg-gray-900 border-b border-gray-800 p-4 flex flex-wrap justify-between items-center gap-3">
+
+        <div class="flex items-center gap-4 flex-wrap">
+            <h1 class="text-xl font-bold">
+                🤖 AI Hub & Dataset Collector
+            </h1>
+
+            <span id="connectionStatus"
+                class="text-xs bg-gray-800 text-yellow-400 px-3 py-2 rounded-full">
+                ● Connecting...
+            </span>
+
+            <span id="usageCounter"
+                class="text-xs bg-red-900/30 text-red-400 px-3 py-2 rounded-full">
+                Usage: 0/50 today
+            </span>
+        </div>
+
         <div class="flex items-center gap-3 flex-wrap">
-            <!-- Model Selector -->
-            <select id="modelSelect" class="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none">
-                <option value="custom-gemma">My Fine-Tuned Gemma 2B (Colab)</option>
-                <option value="groq/llama-3.3-70b-versatile">Groq: Llama 3.3 70B</option>
-                <option value="or/deepseek/deepseek-chat:free">OpenRouter: DeepSeek V3 (Free)</option>
-            </select>
 
-            <!-- Colab Tunnel URL Input -->
-            <input id="colabUrlInput" type="text" placeholder="https://....trycloudflare.com" class="bg-gray-700 border border-gray-600 rounded px-2.5 py-1.5 text-xs w-52 focus:outline-none focus:border-blue-500" title="Paste Cloudflare URL here">
-
-            <!-- Search Toggle (ON BY DEFAULT) -->
-            <label class="flex items-center gap-2 text-sm cursor-pointer select-none bg-gray-700/60 px-2.5 py-1.5 rounded border border-gray-600">
-                <input type="checkbox" id="searchToggle" checked class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0">
-                <span>Web Search</span>
+            <!-- WEB SEARCH -->
+            <label class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700">
+                <input
+                    type="checkbox"
+                    id="searchToggle"
+                    checked
+                    class="accent-blue-500">
+                Web Search
             </label>
 
-            <!-- Usage Counter -->
-            <div id="usageCounter" class="text-xs bg-gray-700 px-2.5 py-1.5 rounded text-gray-300">
-                Usage: 0/50 today
-            </div>
+            <!-- MODEL SELECTOR -->
+            <select id="modelSelect"
+                class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm min-w-64 focus:outline-none focus:border-blue-500">
+
+                <optgroup label="OpenRouter 100% Free Tier">
+                    <option value="openrouter/auto">
+                        OpenRouter: Auto Free Router
+                    </option>
+
+                    <option value="nvidia/nemotron-3.5-super:free">
+                        OpenRouter: Nemotron 3.5 Super (Free)
+                    </option>
+
+                    <option value="nvidia/nemotron-3.5-lightning:free">
+                        OpenRouter: Nemotron 3.5 Lightning (Free)
+                    </option>
+
+                    <option value="nvidia/nemotron-3-ultra-550b:free">
+                        OpenRouter: Nemotron 3 Ultra 550B (Free)
+                    </option>
+                </optgroup>
+
+                <optgroup label="Groq Active Models (Fast)">
+                    <option value="groq/gpt-oss-20b">
+                        Groq: GPT-OSS 20B (1000 t/s)
+                    </option>
+
+                    <option value="groq/gpt-oss-120b">
+                        Groq: GPT-OSS 120B (Reasoning)
+                    </option>
+
+                    <option value="groq/qwen3.8-27b">
+                        Groq: Qwen 3.8 27B
+                    </option>
+                </optgroup>
+
+                <optgroup label="Google Gemini">
+                    <option value="gemini-3.8-flash">
+                        Gemini 3.8 Flash
+                    </option>
+
+                    <option value="gemini-3.5-flash-lite">
+                        Gemini 3.5 Flash-Lite
+                    </option>
+
+                    <option value="gemini-4-argon">
+                        Gemini 4 Argon
+                    </option>
+                </optgroup>
+
+                <optgroup label="Custom Local Training">
+                    <option value="custom-gemma">
+                        My Fine-Tuned Gemma 2B (Colab)
+                    </option>
+                </optgroup>
+
+            </select>
         </div>
     </header>
 
-    <!-- Chat Container -->
-    <main id="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-4 max-w-4xl w-full mx-auto">
+
+    <!-- CHAT -->
+    <main id="chatContainer"
+        class="flex-1 overflow-y-auto p-6 space-y-5 w-full">
+
         <div class="flex items-start gap-3">
-            <div class="bg-blue-600 text-white rounded-full h-8 w-8 flex items-center justify-center font-bold shrink-0 text-xs">AI</div>
-            <div class="bg-gray-800 border border-gray-700 p-3.5 rounded-2xl max-w-[80%] text-sm leading-relaxed">
-                Ready! Web Search is ON by default. Type a message and watch it log directly to your Google Sheet!
+            <div class="bg-blue-600 text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0">
+                AI
+            </div>
+
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed">
+                Welcome to AI Hub!
+
+                <br><br>
+
+                Your AI assistant is ready. Select a model, enable Web Search if desired, and start chatting.
+
+                <br><br>
+
+                Conversations are maintained while this page remains open.
             </div>
         </div>
+
     </main>
 
-    <!-- Input Area -->
-    <footer class="bg-gray-800 border-t border-gray-700 p-4">
-        <div class="max-w-4xl mx-auto flex gap-3">
-            <textarea id="userInput" rows="1" placeholder="Type your message here..." class="flex-1 bg-gray-700 border border-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"></textarea>
-            <button id="sendBtn" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-3 rounded-xl text-sm transition-colors shrink-0">Send</button>
+
+    <!-- INPUT -->
+    <footer class="bg-gray-900 border-t border-gray-800 p-4">
+
+        <div class="flex gap-3 w-full">
+
+            <textarea
+                id="userInput"
+                rows="1"
+                placeholder="Type your message here..."
+                class="flex-1 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none">
+            </textarea>
+
+            <button
+                id="sendBtn"
+                class="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 text-white font-medium px-7 py-3 rounded-xl text-sm transition-colors shrink-0">
+                Send
+            </button>
+
         </div>
+
     </footer>
 
-    <script>
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxDaZYcylrw4dps4kfQsosJSThOzRWOiN_07g57b6NddUofisi7Ul19whVwXu6wuM66/exec";
-        const DEFAULT_COLAB_BASE = "https://chapter-filename-progress-four.trycloudflare.com";
 
-        let messages = [];
+<script>
 
-        const colabInput = document.getElementById("colabUrlInput");
-        colabInput.value = localStorage.getItem("saved_colab_url") || DEFAULT_COLAB_BASE;
-        colabInput.addEventListener("change", () => {
-            localStorage.setItem("saved_colab_url", colabInput.value.trim());
+// ============================================
+// CONFIGURATION
+// ============================================
+
+// Public backend address. API KEYS MUST REMAIN
+// ON THE SERVER, NEVER IN THIS HTML FILE.
+
+const API_BASE =
+    "https://brief-computation-organisms-authentication.trycloudflare.com";
+
+const CHAT_ENDPOINT =
+    API_BASE.replace(/\/+$/, "") + "/v1/chat/completions";
+
+const DAILY_LIMIT = 50;
+
+
+// ============================================
+// ELEMENTS
+// ============================================
+
+const chatContainer =
+    document.getElementById("chatContainer");
+
+const userInput =
+    document.getElementById("userInput");
+
+const sendBtn =
+    document.getElementById("sendBtn");
+
+const modelSelect =
+    document.getElementById("modelSelect");
+
+const searchToggle =
+    document.getElementById("searchToggle");
+
+const usageCounter =
+    document.getElementById("usageCounter");
+
+const connectionStatus =
+    document.getElementById("connectionStatus");
+
+
+// ============================================
+// CONVERSATION MEMORY
+// ============================================
+
+let messages = [];
+
+let isSending = false;
+
+
+// ============================================
+// DAILY USAGE COUNTER
+// ============================================
+
+function getToday() {
+
+    const now = new Date();
+
+    return [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, "0"),
+        String(now.getDate()).padStart(2, "0")
+    ].join("-");
+}
+
+
+function getUsage() {
+
+    try {
+
+        const saved = JSON.parse(
+            localStorage.getItem("ai_chat_usage") || "{}"
+        );
+
+        if (saved.date !== getToday()) {
+
+            return {
+                date: getToday(),
+                count: 0
+            };
+
+        }
+
+        return saved;
+
+    } catch {
+
+        return {
+            date: getToday(),
+            count: 0
+        };
+
+    }
+
+}
+
+
+function updateUsageDisplay() {
+
+    const usage = getUsage();
+
+    usageCounter.innerText =
+        `Usage: ${usage.count}/${DAILY_LIMIT} today`;
+
+}
+
+
+function checkAndIncrementUsage() {
+
+    const usage = getUsage();
+
+    if (usage.count >= DAILY_LIMIT) {
+
+        alert("Daily usage limit of 50 reached!");
+
+        return false;
+
+    }
+
+    usage.count++;
+
+    localStorage.setItem(
+        "ai_chat_usage",
+        JSON.stringify(usage)
+    );
+
+    updateUsageDisplay();
+
+    return true;
+
+}
+
+
+// ============================================
+// MESSAGE DISPLAY
+// ============================================
+
+function appendMessage(role, content) {
+
+    const isUser = role === "user";
+
+    const wrapper = document.createElement("div");
+
+    wrapper.className =
+        `flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`;
+
+    const avatar = document.createElement("div");
+
+    avatar.className =
+        `${isUser ? "bg-emerald-600" : "bg-blue-600"} text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0`;
+
+    avatar.innerText = isUser ? "You" : "AI";
+
+    const bubble = document.createElement("div");
+
+    bubble.className =
+        `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} p-4 rounded-2xl max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap break-words`;
+
+    // textContent prevents model output from executing HTML.
+
+    bubble.textContent = content;
+
+    wrapper.appendChild(avatar);
+
+    wrapper.appendChild(bubble);
+
+    chatContainer.appendChild(wrapper);
+
+    chatContainer.scrollTop =
+        chatContainer.scrollHeight;
+
+    return wrapper;
+
+}
+
+
+// ============================================
+// LOADING MESSAGE
+// ============================================
+
+function createLoadingMessage() {
+
+    return appendMessage(
+        "assistant",
+        "Thinking..."
+    );
+
+}
+
+
+// ============================================
+// CONNECTION STATUS
+// ============================================
+
+function setStatus(status, color) {
+
+    connectionStatus.innerText =
+        "● " + status;
+
+    connectionStatus.className =
+        `text-xs px-3 py-2 rounded-full bg-gray-800 ${color}`;
+
+}
+
+
+// ============================================
+// EXTRACT AI RESPONSE
+// ============================================
+
+function extractReply(data) {
+
+    if (data.error) {
+
+        throw new Error(
+            typeof data.error === "string"
+                ? data.error
+                : data.error.message || JSON.stringify(data.error)
+        );
+
+    }
+
+    if (
+        data.choices &&
+        data.choices[0] &&
+        data.choices[0].message
+    ) {
+
+        const content =
+            data.choices[0].message.content;
+
+        if (typeof content === "string") {
+
+            return content;
+
+        }
+
+        if (Array.isArray(content)) {
+
+            return content
+                .map(item => item.text || "")
+                .join("");
+
+        }
+
+    }
+
+    if (data.reply) {
+
+        return data.reply;
+
+    }
+
+    throw new Error(
+        "Unexpected response format from the AI server."
+    );
+
+}
+
+
+// ============================================
+// SEND MESSAGE
+// ============================================
+
+async function handleSend() {
+
+    if (isSending) return;
+
+    const text = userInput.value.trim();
+
+    if (!text) return;
+
+    if (!checkAndIncrementUsage()) return;
+
+    isSending = true;
+
+    sendBtn.disabled = true;
+
+    sendBtn.innerText = "Sending...";
+
+    userInput.value = "";
+
+    // Display user message.
+
+    appendMessage("user", text);
+
+    messages.push({
+
+        role: "user",
+
+        content: text
+
+    });
+
+    // Read selected settings.
+
+    const selectedModel =
+        modelSelect.value;
+
+    const useSearch =
+        searchToggle.checked;
+
+    // Display loading message.
+
+    const loadingMessage =
+        createLoadingMessage();
+
+
+    try {
+
+        setStatus("Connecting...", "text-yellow-400");
+
+        // OpenAI-compatible request.
+        // The server must handle model routing,
+        // web search and private API keys.
+
+        const payload = {
+
+            model: selectedModel,
+
+            messages: messages,
+
+            useSearch: useSearch,
+
+            stream: false,
+
+            logToSheet: true
+
+        };
+
+
+        const response = await fetch(
+            CHAT_ENDPOINT,
+            {
+
+                method: "POST",
+
+                headers: {
+
+                    "Content-Type": "application/json"
+
+                },
+
+                body: JSON.stringify(payload)
+
+            }
+        );
+
+
+        if (!response.ok) {
+
+            const errorText =
+                await response.text();
+
+            throw new Error(
+                `Server error ${response.status}: ${errorText.slice(0, 300)}`
+            );
+
+        }
+
+
+        const data = await response.json();
+
+        const reply = extractReply(data);
+
+
+        // Remove loading message.
+
+        loadingMessage.remove();
+
+
+        // Display AI response.
+
+        appendMessage("assistant", reply);
+
+
+        // Save response to conversation history.
+
+        messages.push({
+
+            role: "assistant",
+
+            content: reply
+
         });
 
-        function getFullColabUrl() {
-            let base = colabInput.value.trim().replace(/\/+$/, "");
-            if (!base.endsWith("/v1/chat/completions")) {
-                base += "/v1/chat/completions";
-            }
-            return base;
+
+        setStatus("Connected", "text-green-400");
+
+
+    } catch (error) {
+
+        loadingMessage.remove();
+
+        appendMessage(
+            "assistant",
+            "⚠️ Error: " + error.message
+        );
+
+        setStatus("Connection Error", "text-red-400");
+
+        console.error(error);
+
+    } finally {
+
+        isSending = false;
+
+        sendBtn.disabled = false;
+
+        sendBtn.innerText = "Send";
+
+        userInput.focus();
+
+    }
+
+}
+
+
+// ============================================
+// BUTTON EVENTS
+// ============================================
+
+sendBtn.addEventListener(
+    "click",
+    handleSend
+);
+
+
+// ENTER TO SEND
+// SHIFT + ENTER = NEW LINE
+
+userInput.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (
+            event.key === "Enter" &&
+            !event.shiftKey
+        ) {
+
+            event.preventDefault();
+
+            handleSend();
+
         }
 
-        function checkAndIncrementUsage() {
-            const today = new Date().toISOString().slice(0, 10);
-            let usageData = JSON.parse(localStorage.getItem("ai_chat_usage") || "{}");
-            if (usageData.date !== today) {
-                usageData = { date: today, count: 0 };
-            }
-            if (usageData.count >= 50) {
-                alert("Daily usage limit of 50 reached!");
-                return false;
-            }
-            usageData.count++;
-            localStorage.setItem("ai_usage", JSON.stringify(usageData));
-            document.getElementById("usageCounter").innerText = `Usage: ${usageData.count}/50 today`;
-            return true;
-        }
+    }
+);
 
-        (function() {
-            const today = new Date().toISOString().slice(0, 10);
-            let usageData = JSON.parse(localStorage.getItem("ai_chat_usage") || "{}");
-            if (usageData.date === today) {
-                document.getElementById("usageCounter").innerText = `Usage: ${usageData.count}/50 today`;
-            }
-        })();
 
-        async function handleSend() {
-            const inputEl = document.getElementById("userInput");
-            const text = inputEl.value.trim();
-            if (!text) return;
+// ============================================
+// INITIALIZATION
+// ============================================
 
-            if (!checkAndIncrementUsage()) return;
+updateUsageDisplay();
 
-            inputEl.value = "";
-            appendMessage("user", text);
-            messages.push({ role: "user", content: text });
+setStatus(
+    "Ready",
+    "text-green-400"
+);
 
-            const selectedModel = document.getElementById("modelSelect").value;
-            const useSearch = document.getElementById("searchToggle").checked;
+</script>
 
-            const loadingId = appendMessage("assistant", "Thinking...");
-
-            try {
-                const payload = {
-                    model: selectedModel,
-                    useSearch: useSearch,
-                    messages: messages,
-                    colabUrl: getFullColabUrl()
-                };
-
-                const targetUrl = APPS_SCRIPT_URL + "?data=" + encodeURIComponent(JSON.stringify(payload));
-                const response = await fetch(targetUrl, { method: "GET" });
-                const rawText = await response.text();
-                removeMessage(loadingId);
-
-                let data;
-                try {
-                    data = JSON.parse(rawText);
-                } catch (parseErr) {
-                    appendMessage("assistant", "⚠️ Non-JSON response from Apps Script:\n" + rawText.slice(0, 180));
-                    return;
-                }
-
-                if (data.error) {
-                    appendMessage("assistant", "⚠️ Error: " + data.error);
-                } else if (data.choices && data.choices[0] && data.choices[0].message) {
-                    const reply = data.choices[0].message.content;
-                    appendMessage("assistant", reply);
-                    messages.push({ role: "assistant", content: reply });
-                } else {
-                    appendMessage("assistant", "⚠️ Unexpected response format.");
-                }
-            } catch (err) {
-                removeMessage(loadingId);
-                appendMessage("assistant", "⚠️ Fetch failed: " + err.message);
-            }
-        }
-
-        function appendMessage(role, text) {
-            const container = document.getElementById("chatContainer");
-            const msgId = "msg-" + Math.random().toString(36).substr(2, 9);
-            const isUser = role === "user";
-
-            const wrapper = document.createElement("div");
-            wrapper.id = msgId;
-            wrapper.className = `flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`;
-
-            const avatar = document.createElement("div");
-            avatar.className = `${isUser ? "bg-emerald-600" : "bg-blue-600"} text-white rounded-full h-8 w-8 flex items-center justify-center font-bold text-xs shrink-0`;
-            avatar.innerText = isUser ? "You" : "AI";
-
-            const bubble = document.createElement("div");
-            bubble.className = `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} p-3.5 rounded-2xl max-w-[80%] text-sm leading-relaxed whitespace-pre-wrap`;
-            bubble.innerText = text;
-
-            wrapper.appendChild(avatar);
-            wrapper.appendChild(bubble);
-            container.appendChild(wrapper);
-            container.scrollTop = container.scrollHeight;
-
-            return msgId;
-        }
-
-        function removeMessage(id) {
-            const el = document.getElementById(id);
-            if (el) el.remove();
-        }
-
-        document.getElementById("sendBtn").addEventListener("click", handleSend);
-        document.getElementById("userInput").addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-            }
-        });
-    </script>
 </body>
 </html>
