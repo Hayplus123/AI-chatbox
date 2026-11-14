@@ -1,336 +1,213 @@
-
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+    <meta name="theme-color" content="#030712">
     <title>AI Hub & Dataset Collector</title>
-
     <script src="https://cdn.tailwindcss.com"></script>
-
     <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100dvh;
-        }
-
-        #chatContainer {
-            scroll-behavior: smooth;
-        }
-
-        #userInput {
-            max-height: 180px;
-        }
-
-        .message-bubble {
-            overflow-wrap: anywhere;
-        }
-
-        button:disabled {
-            cursor: not-allowed;
-            opacity: 0.55;
-        }
-
-        select option:disabled {
-            color: #777;
-        }
-
-        #aiFailoverToast {
-            animation: toastIn 0.25s ease-out;
-        }
-
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100dvh; }
+        #chatContainer { scroll-behavior: smooth; }
+        #userInput { max-height: 180px; }
+        .message-bubble { overflow-wrap: anywhere; }
+        button:disabled { cursor: not-allowed; opacity: .55; }
+        select option:disabled { color: #777; }
+        #aiFailoverToast { animation: toastIn .22s ease-out; }
         @keyframes toastIn {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-
         @media (max-width: 640px) {
-            .model-selector {
-                width: 100%;
-            }
+            .model-selector, .training-select { width: 100%; }
         }
     </style>
 </head>
 
-
 <body class="bg-gray-950 text-gray-100 flex flex-col min-h-screen">
 
-
-<!-- ================================================= -->
-<!-- HEADER                                            -->
-<!-- ================================================= -->
-
+<!-- ================================================== -->
+<!-- HEADER                                             -->
+<!-- ================================================== -->
 <header class="bg-gray-900 border-b border-gray-800 p-4">
-
     <div class="flex flex-wrap justify-between items-center gap-4">
-
         <div class="flex flex-wrap items-center gap-3">
-
-            <h1 class="text-xl font-bold">
-                🤖 AI Hub & Dataset Collector
-            </h1>
-
-            <span id="status"
-                class="text-xs bg-gray-800 text-green-400 px-3 py-2 rounded-full">
-                ● Ready
-            </span>
-
+            <h1 class="text-xl font-bold">🤖 AI Hub & Dataset Collector</h1>
+            <span id="status" class="text-xs bg-gray-800 text-green-400 px-3 py-2 rounded-full">● Connecting...</span>
         </div>
-
-
         <div class="flex flex-wrap items-center gap-2">
-
-            <span id="usageCounter"
-                class="text-xs bg-red-900/30 text-red-400 px-3 py-2 rounded-full">
-                Usage: 0/50 today
-            </span>
-
-            <span id="memoryStatus"
-                class="text-xs bg-blue-900/30 text-blue-300 px-3 py-2 rounded-full">
-                ☁ Cloud Memory
-            </span>
-
+            <span id="usageCounter" class="text-xs bg-red-900/30 text-red-400 px-3 py-2 rounded-full">Usage: 0/50 today</span>
+            <span id="memoryStatus" class="text-xs bg-blue-900/30 text-blue-300 px-3 py-2 rounded-full">☁ Cloud Memory</span>
         </div>
-
     </div>
-
-
-    <!-- MODEL CONTROLS -->
 
     <div class="flex flex-wrap items-center gap-3 mt-4">
-
-
-        <!-- WEB SEARCH -->
-
-        <label id="searchControl"
-            class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700 opacity-40">
-
-            <input
-                type="checkbox"
-                id="searchToggle"
-                disabled
-                class="accent-blue-500">
-
+        <label id="searchControl" class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700 opacity-40" title="Available only with your personal AI models.">
+            <input type="checkbox" id="searchToggle" class="accent-blue-500" disabled>
             <span>Web Search</span>
-
         </label>
 
-
-        <!-- MODEL SELECTOR -->
-
-        <select
-            id="modelSelect"
-            class="model-selector bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm min-w-64 focus:outline-none focus:border-blue-500">
-
-
-            <!-- OPENROUTER -->
-
-            <optgroup label="OpenRouter - Free Models">
-
-                <option value="or/openrouter/free">
-                    OpenRouter: Auto Free Router
-                </option>
-
-                <option value="or/nvidia/nemotron-3-ultra-550b-a55b:free">
-                    OpenRouter: Nemotron 3 Ultra (Free)
-                </option>
-
-                <option value="or/nvidia/nemotron-3.5-super-vl:free">
-                    OpenRouter: Nemotron 3.5 Super VL (Free)
-                </option>
-
-                <option value="or/nvidia/nemotron-3.5-lightning:free">
-                    OpenRouter: Nemotron 3.5 Lightning (Free)
-                </option>
-
-                <option value="or/deepseek/deepseek-chat:free">
-                    OpenRouter: DeepSeek Chat (Free)
-                </option>
-
+        <select id="modelSelect" class="model-selector bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm min-w-64 focus:outline-none focus:border-blue-500">
+            <optgroup label="OpenRouter — Free Models">
+                <option value="or/openrouter/free">OpenRouter: Auto Free Router</option>
+                <option value="or/nvidia/nemotron-3-ultra-550b-a55b:free">OpenRouter: Nemotron 3 Ultra (Free)</option>
+                <option value="or/nvidia/nemotron-3.5-super-vl:free">OpenRouter: Nemotron 3.5 Super VL (Free)</option>
+                <option value="or/nvidia/nemotron-3.5-lightning:free">OpenRouter: Nemotron 3.5 Lightning (Free)</option>
             </optgroup>
 
-
-            <!-- GROQ -->
-
-            <optgroup label="Groq - Fast Models">
-
-                <option value="groq/gpt-oss-20b">
-                    Groq: GPT-OSS 20B
-                </option>
-
-                <option value="groq/gpt-oss-120b">
-                    Groq: GPT-OSS 120B
-                </option>
-
-                <option value="groq/qwen3.8-27b">
-                    Groq: Qwen 3.8 27B
-                </option>
-
+            <optgroup label="Groq — Fast Models">
+                <option value="groq/openai/gpt-oss-20b">Groq: GPT-OSS 20B</option>
+                <option value="groq/openai/gpt-oss-120b">Groq: GPT-OSS 120B</option>
+                <option value="groq/qwen/qwen3.8-27b">Groq: Qwen 3.8 27B</option>
+                <option value="groq/llama-3.3-70b-versatile">Groq: Llama 3.3 70B</option>
             </optgroup>
-
-
-            <!-- GEMINI -->
 
             <optgroup label="Google Gemini">
-
-                <option value="gemini/gemini-3.8-flash">
-                    Gemini 3.8 Flash
-                </option>
-
-                <option value="gemini/gemini-3.5-flash-lite" selected>
-                    Gemini 3.5 Flash-Lite
-                </option>
-
-                <option value="gemini/gemini-3.5-flash">
-                    Gemini 3.5 Flash
-                </option>
-
+                <option value="gemini/gemini-3.8-flash">Gemini 3.8 Flash</option>
+                <option value="gemini/gemini-3.5-flash-lite" selected>Gemini 3.5 Flash-Lite</option>
+                <option value="gemini/gemini-3.5-flash">Gemini 3.5 Flash</option>
             </optgroup>
-
-
-            <!-- PERSONAL AI -->
 
             <optgroup label="My Personal AI">
-
-                <option value="custom-gemma">
-                    My Fine-Tuned Gemma 2B (Colab)
-                </option>
-
-                <option value="cloudflare-backup">
-                    Cloudflare AI (My Backup Model)
-                </option>
-
+                <option value="custom-gemma">My Fine-Tuned Gemma 2B (Colab)</option>
+                <option value="cloudflare-backup">Cloudflare AI (My Backup Model)</option>
             </optgroup>
-
         </select>
-
     </div>
-
 
     <div class="mt-3 text-xs text-gray-500">
-
-        Failed models are disabled until 12:00 AM Toronto time.
-        Cloud memory is shared across models.
-
+        Failed models are disabled until 12:00 AM Toronto time. Cloud memory and research notes are shared across models.
     </div>
-
-
     <div class="mt-2 text-xs text-blue-300">
-
-        Active model:
-        <span id="activeModelLabel">
-            Waiting for first message
-        </span>
-
+        Active model: <span id="activeModelLabel">Waiting for first message</span>
     </div>
-
 </header>
 
 
+<!-- ================================================== -->
+<!-- RESEARCH TRAINING PANEL                             -->
+<!-- ================================================== -->
+<section class="bg-gray-900 border-b border-gray-800 p-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="font-bold text-lg">🧠 AI Research Training</h2>
+            <p class="text-xs text-gray-400">Research public articles and save sourced notes to your shared Drive knowledge archive.</p>
+        </div>
+        <button id="openTrainingBtn" type="button" class="bg-purple-700 hover:bg-purple-600 px-4 py-2 rounded-lg text-sm font-medium">🧠 Train</button>
+    </div>
 
-<!-- ================================================= -->
-<!-- CHAT                                              -->
-<!-- ================================================= -->
-
-<main
-    id="chatContainer"
-    class="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 w-full">
-
-
-    <div class="flex items-start gap-3">
-
-        <div class="bg-blue-600 text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0">
-            AI
+    <div id="trainingPanel" class="hidden mt-4 space-y-4">
+        <div>
+            <label for="trainingTopic" class="text-sm text-gray-300 block mb-2">What should your AI research?</label>
+            <input id="trainingTopic" type="text" maxlength="250" placeholder="Example: Solar flares, black holes, computer science..." class="w-full bg-gray-950 border border-gray-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-purple-500">
         </div>
 
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+                <label for="trainingDuration" class="text-sm text-gray-300 block mb-2">Session duration</label>
+                <select id="trainingDuration" class="training-select w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-3 text-sm">
+                    <option value="5">5 minutes</option>
+                    <option value="10" selected>10 minutes</option>
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60">60 minutes</option>
+                </select>
+            </div>
+            <div>
+                <label for="trainingModel" class="text-sm text-gray-300 block mb-2">Research summarizer</label>
+                <select id="trainingModel" class="training-select w-full bg-gray-950 border border-gray-700 rounded-lg px-3 py-3 text-sm">
+                    <option value="gemini/gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option>
+                    <option value="groq/openai/gpt-oss-20b">Groq GPT-OSS 20B</option>
+                    <option value="or/openrouter/free">OpenRouter Free Router</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+            <button id="startTrainingBtn" type="button" class="bg-purple-700 hover:bg-purple-600 disabled:bg-gray-700 px-5 py-3 rounded-lg text-sm font-medium">Start Training</button>
+            <button id="stopTrainingBtn" type="button" disabled class="bg-red-700 hover:bg-red-600 disabled:bg-gray-700 px-5 py-3 rounded-lg text-sm font-medium">Stop Training</button>
+        </div>
+
+        <div class="bg-gray-950 border border-gray-700 rounded-xl p-4 space-y-3">
+            <div class="flex justify-between items-center gap-3">
+                <strong class="text-sm">Training Status</strong>
+                <span id="trainingStatus" class="text-xs text-gray-400">Not running</span>
+            </div>
+            <div class="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                <div id="trainingProgress" class="bg-purple-500 h-2 rounded-full" style="width:0%"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                    <p class="text-xs text-gray-500">Articles learned</p>
+                    <strong id="trainingCount">0</strong>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500">Time remaining</p>
+                    <strong id="trainingTimer">--</strong>
+                </div>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 mb-1">Currently researching</p>
+                <p id="trainingCurrent" class="text-sm text-gray-200">Nothing yet.</p>
+            </div>
+            <div>
+                <p class="text-xs text-gray-500 mb-2">Recent learning activity</p>
+                <div id="trainingLearned" class="space-y-2 text-sm">
+                    <p class="text-gray-500">No research collected yet.</p>
+                </div>
+            </div>
+            <div id="trainingMessage" class="text-xs text-gray-400">Training is currently inactive.</div>
+        </div>
+
+        <p class="text-xs text-gray-500">
+            Research source in this version: Wikipedia. This saves sourced knowledge to Drive; it does not directly fine-tune the model weights.
+        </p>
+    </div>
+</section>
+
+
+<!-- ================================================== -->
+<!-- CHAT                                               -->
+<!-- ================================================== -->
+<main id="chatContainer" class="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 w-full">
+    <div class="flex items-start gap-3">
+        <div class="bg-blue-600 text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0">AI</div>
         <div class="bg-gray-800 border border-gray-700 p-4 rounded-2xl max-w-[90%] md:max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap">
-
 Welcome to AI Hub!
-
-Your AI assistant is ready.
 
 Select a model and start chatting.
 
-PERSONAL AI BACKUP:
+PERSONAL AI:
+• Custom Gemma 2B (Colab)
+• Cloudflare Workers AI
 
-1. Custom Gemma 2B (Colab)
-2. Cloudflare Workers AI
-3. Gemini / Groq / OpenRouter
-
-If a model fails, the system automatically tries the next available model.
+AUTOMATIC FAILOVER:
+If a model fails, the server tries the next available model. Failed models are disabled until midnight Toronto time.
 
 CLOUD MEMORY:
+Conversation memory and research notes are shared across models through Google Drive.
 
-Your conversations are saved to Google Drive and can be shared between AI models.
-
-WEB SEARCH:
-
-Available with your personal Gemma and Cloudflare AI.
-
+RESEARCH TRAINING:
+Use the Train panel to research a topic and save source-linked notes for future conversations.
         </div>
-
     </div>
-
 </main>
 
 
-
-<!-- ================================================= -->
-<!-- INPUT                                             -->
-<!-- ================================================= -->
-
+<!-- ================================================== -->
+<!-- INPUT                                              -->
+<!-- ================================================== -->
 <footer class="bg-gray-900 border-t border-gray-800 p-4">
-
     <div class="flex gap-3 w-full">
-
-        <textarea
-            id="userInput"
-            rows="1"
-            placeholder="Type your message here..."
-            class="flex-1 min-w-0 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"></textarea>
-
-
-        <button
-            id="sendBtn"
-            class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-3 rounded-xl text-sm transition-colors shrink-0">
-
-            Send
-
-        </button>
-
+        <textarea id="userInput" rows="1" placeholder="Type your message here..." class="flex-1 min-w-0 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"></textarea>
+        <button id="sendBtn" type="button" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-3 rounded-xl text-sm transition-colors shrink-0">Send</button>
     </div>
-
-
-    <div class="mt-2 text-xs text-gray-500">
-
-        Enter = Send · Shift + Enter = New Line
-
-    </div>
-
+    <div class="mt-2 text-xs text-gray-500">Enter = Send · Shift + Enter = New Line</div>
 </footer>
 
 
-
-<!-- ================================================= -->
-<!-- JAVASCRIPT                                        -->
-<!-- ================================================= -->
-
 <script>
-
-
 // ====================================================
 // 1. CONFIGURATION
 // ====================================================
@@ -339,43 +216,38 @@ const APPS_SCRIPT_URL =
 "https://script.google.com/macros/s/AKfycbxDaZYcylrw4dps4kfQsosJSThOzRWOiN_07g57b6NddUofisi7Ul19whVwXu6wuM66/exec";
 
 const DAILY_LIMIT = 50;
-
-const STATUS_REFRESH_INTERVAL = 60000;
+const STATUS_REFRESH_INTERVAL = 10000;
 
 
 // ====================================================
-// 2. HTML ELEMENTS
+// 2. ELEMENTS
 // ====================================================
 
-const chatContainer =
-document.getElementById("chatContainer");
+const chatContainer = document.getElementById("chatContainer");
+const userInput = document.getElementById("userInput");
+const sendBtn = document.getElementById("sendBtn");
+const modelSelect = document.getElementById("modelSelect");
+const searchToggle = document.getElementById("searchToggle");
+const searchControl = document.getElementById("searchControl");
+const usageCounter = document.getElementById("usageCounter");
+const status = document.getElementById("status");
+const memoryStatus = document.getElementById("memoryStatus");
+const activeModelLabel = document.getElementById("activeModelLabel");
 
-const userInput =
-document.getElementById("userInput");
-
-const sendBtn =
-document.getElementById("sendBtn");
-
-const modelSelect =
-document.getElementById("modelSelect");
-
-const searchToggle =
-document.getElementById("searchToggle");
-
-const searchControl =
-document.getElementById("searchControl");
-
-const usageCounter =
-document.getElementById("usageCounter");
-
-const status =
-document.getElementById("status");
-
-const memoryStatus =
-document.getElementById("memoryStatus");
-
-const activeModelLabel =
-document.getElementById("activeModelLabel");
+const openTrainingBtn = document.getElementById("openTrainingBtn");
+const trainingPanel = document.getElementById("trainingPanel");
+const trainingTopic = document.getElementById("trainingTopic");
+const trainingDuration = document.getElementById("trainingDuration");
+const trainingModel = document.getElementById("trainingModel");
+const startTrainingBtn = document.getElementById("startTrainingBtn");
+const stopTrainingBtn = document.getElementById("stopTrainingBtn");
+const trainingStatus = document.getElementById("trainingStatus");
+const trainingProgress = document.getElementById("trainingProgress");
+const trainingCount = document.getElementById("trainingCount");
+const trainingTimer = document.getElementById("trainingTimer");
+const trainingCurrent = document.getElementById("trainingCurrent");
+const trainingLearned = document.getElementById("trainingLearned");
+const trainingMessage = document.getElementById("trainingMessage");
 
 
 // ====================================================
@@ -383,1367 +255,695 @@ document.getElementById("activeModelLabel");
 // ====================================================
 
 let messages = [];
-
 let isSending = false;
-
 let notificationTimer = null;
-
 let currentFailureState = {};
+let trainingSnapshot = { status: "inactive", processedCount: 0, latestLearned: [] };
+let previousSelectedModel = null;
+let wasTrainingActive = false;
 
-
-// Save original labels before applying status changes.
-
+// Keep original dropdown labels so status labels can be rebuilt cleanly.
 Array.from(modelSelect.options).forEach(option => {
+    option.dataset.baseLabel = option.textContent.trim();
+});
 
-    option.dataset.baseLabel =
-        option.textContent.trim();
-
+Array.from(trainingModel.options).forEach(option => {
+    option.dataset.baseLabel = option.textContent.trim();
 });
 
 
 // ====================================================
-// 4. MODEL NAMES
+// 4. MODEL HELPERS
 // ====================================================
 
 function getModelLabel(model) {
+    const allOptions = [
+        ...Array.from(modelSelect.options),
+        ...Array.from(trainingModel.options)
+    ];
+    const option = allOptions.find(item => item.value === model);
+    if (option) return option.dataset.baseLabel || option.textContent.trim();
 
-    const option = Array.from(modelSelect.options)
-        .find(item => item.value === model);
-
-    if (option) {
-
-        return option.dataset.baseLabel;
-
-    }
-
-    const names = {
-
+    const labels = {
         "custom-gemma": "Colab Gemma 2B",
-
         "cloudflare-backup": "Cloudflare AI Backup"
-
     };
+    return labels[model] || model || "Unknown model";
+}
 
-    return names[model] || model || "Unknown model";
+function isPersonalAI(model) {
+    return model === "custom-gemma" || model === "cloudflare-backup";
+}
 
+function isExternalTrainingModel(model) {
+    return /^(gemini\/|gemini-|groq\/|or\/|openrouter\/)/.test(model);
+}
+
+function isMyAISelected() {
+    return isPersonalAI(modelSelect.value);
 }
 
 
 // ====================================================
-// 5. PERSONAL AI DETECTION
-// ====================================================
-
-function isMyAI() {
-
-    return (
-
-        modelSelect.value === "custom-gemma" ||
-
-        modelSelect.value === "cloudflare-backup"
-
-    );
-
-}
-
-
-// ====================================================
-// 6. WEB SEARCH
+// 5. WEB SEARCH
 // ====================================================
 
 function updateSearchAvailability() {
-
-    const available = isMyAI();
+    const trainingActive = ["running", "stopping"].includes(trainingSnapshot.status);
+    const available = isMyAISelected() && !trainingActive;
 
     searchToggle.disabled = !available;
+    if (!available) searchToggle.checked = false;
 
-
-    if (!available) {
-
-        searchToggle.checked = false;
-
-    }
-
-
-    searchControl.classList.toggle(
-        "opacity-40",
-        !available
-    );
-
-
+    searchControl.classList.toggle("opacity-40", !available);
     searchControl.title = available
-
-        ? "Web Search is available with your personal AI."
-
-        : "Web Search is only available with your personal AI.";
-
+        ? "Web Search is available with your personal AI models."
+        : "Web Search is available only with your personal AI models when research training is not running.";
 }
 
-
-modelSelect.addEventListener(
-    "change",
-    updateSearchAvailability
-);
+modelSelect.addEventListener("change", updateSearchAvailability);
 
 
 // ====================================================
-// 7. DAILY USAGE COUNTER
-// ====================================================
-
-function getToday() {
-
-    const parts = new Intl.DateTimeFormat(
-
-        "en-US",
-
-        {
-
-            timeZone: "America/Toronto",
-
-            year: "numeric",
-
-            month: "2-digit",
-
-            day: "2-digit"
-
-        }
-
-    ).formatToParts(new Date());
-
-
-    const values = {};
-
-    parts.forEach(part => {
-
-        values[part.type] = part.value;
-
-    });
-
-
-    return (
-
-        values.year + "-" +
-
-        values.month + "-" +
-
-        values.day
-
-    );
-
-}
-
-
-function getUsage() {
-
-    try {
-
-        const saved = JSON.parse(
-
-            localStorage.getItem("ai_chat_usage") || "{}"
-
-        );
-
-
-        if (saved.date !== getToday()) {
-
-            return {
-
-                date: getToday(),
-
-                count: 0
-
-            };
-
-        }
-
-
-        return saved;
-
-    } catch {
-
-        return {
-
-            date: getToday(),
-
-            count: 0
-
-        };
-
-    }
-
-}
-
-
-function updateUsageDisplay() {
-
-    const usage = getUsage();
-
-    usageCounter.innerText =
-        `Usage: ${usage.count}/${DAILY_LIMIT} today`;
-
-}
-
-
-function incrementUsage() {
-
-    const usage = getUsage();
-
-    usage.count++;
-
-
-    localStorage.setItem(
-
-        "ai_chat_usage",
-
-        JSON.stringify(usage)
-
-    );
-
-
-    updateUsageDisplay();
-
-}
-
-
-// ====================================================
-// 8. STATUS DISPLAY
-// ====================================================
-
-function setStatus(message, color) {
-
-    status.innerText = "● " + message;
-
-    status.className =
-        `text-xs px-3 py-2 rounded-full bg-gray-800 ${color}`;
-
-}
-
-
-// ====================================================
-// 9. MESSAGE DISPLAY
-// ====================================================
-
-function appendMessage(role, content) {
-
-    const isUser = role === "user";
-
-    const wrapper =
-        document.createElement("div");
-
-    wrapper.className =
-        `flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`;
-
-
-    const avatar =
-        document.createElement("div");
-
-    avatar.className =
-
-        `${isUser ? "bg-emerald-600" : "bg-blue-600"} text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0`;
-
-    avatar.innerText =
-        isUser ? "You" : "AI";
-
-
-    const bubble =
-        document.createElement("div");
-
-    bubble.className =
-
-        `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} message-bubble p-4 rounded-2xl max-w-[90%] md:max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap`;
-
-
-    bubble.textContent = content;
-
-    wrapper.appendChild(avatar);
-
-    wrapper.appendChild(bubble);
-
-    chatContainer.appendChild(wrapper);
-
-    chatContainer.scrollTop =
-        chatContainer.scrollHeight;
-
-    return wrapper;
-
-}
-
-
-// ====================================================
-// 10. RESPONSE EXTRACTION
-// ====================================================
-
-function extractReply(data) {
-
-    if (data.error) {
-
-        throw new Error(
-
-            typeof data.error === "string"
-
-                ? data.error
-
-                : data.error.message || "Unknown server error."
-
-        );
-
-    }
-
-
-    if (
-
-        data.choices &&
-
-        data.choices[0] &&
-
-        data.choices[0].message
-
-    ) {
-
-        const content =
-            data.choices[0].message.content;
-
-
-        if (typeof content === "string") {
-
-            return content;
-
-        }
-
-
-        if (Array.isArray(content)) {
-
-            return content.map(
-
-                part => part.text || ""
-
-            ).join("");
-
-        }
-
-    }
-
-
-    throw new Error(
-        "Unexpected AI response format."
-    );
-
-}
-
-
-// ====================================================
-// 11. MODEL STATUS
-// ====================================================
-
-function applyModelStates(modelStates) {
-
-    if (
-        !modelStates ||
-        !modelStates.failed
-    ) {
-
-        return;
-
-    }
-
-
-    const failed =
-        modelStates.failed;
-
-
-    currentFailureState = failed;
-
-
-    // This is deliberately simple:
-    // Healthy options stay selectable.
-    // Failed options become disabled.
-    // Cloudflare has NO automatic-only restriction.
-
-    Array.from(modelSelect.options).forEach(option => {
-
-        const model =
-            option.value;
-
-
-        const baseLabel =
-            option.dataset.baseLabel || option.textContent;
-
-
-        const failure =
-            failed[model];
-
-
-        option.disabled =
-            Boolean(failure);
-
-
-        if (failure) {
-
-            option.textContent =
-
-                baseLabel +
-
-                " — UNAVAILABLE UNTIL 12 AM";
-
-
-            option.title =
-
-                "Failed today: " +
-
-                String(failure.reason || "Unavailable");
-
-        } else {
-
-            option.textContent = baseLabel;
-
-            option.title = "";
-
-        }
-
-    });
-
-}
-
-
-// ====================================================
-// 12. FAILOVER NOTIFICATIONS
-// ====================================================
-
-function showFailoverNotification(
-
-    message,
-
-    type = "warning"
-
-) {
-
-    let toast =
-        document.getElementById("aiFailoverToast");
-
-
-    if (!toast) {
-
-        toast = document.createElement("div");
-
-        toast.id = "aiFailoverToast";
-
-        toast.setAttribute("role", "status");
-
-        toast.setAttribute("aria-live", "polite");
-
-        toast.className =
-
-            "fixed top-24 right-4 z-50 max-w-sm p-4 rounded-xl shadow-2xl border text-sm whitespace-pre-wrap";
-
-        document.body.appendChild(toast);
-
-    }
-
-
-    toast.className =
-
-        "fixed top-24 right-4 z-50 max-w-sm p-4 rounded-xl shadow-2xl border text-sm whitespace-pre-wrap " +
-
-        (
-
-            type === "error"
-
-                ? "bg-red-950 border-red-500 text-red-100"
-
-                : "bg-yellow-950 border-yellow-500 text-yellow-100"
-
-        );
-
-
-    toast.textContent = message;
-
-    toast.style.display = "block";
-
-
-    if (notificationTimer) {
-
-        clearTimeout(notificationTimer);
-
-    }
-
-
-    notificationTimer = setTimeout(() => {
-
-        toast.style.display = "none";
-
-    }, 12000);
-
-}
-
-
-// ====================================================
-// 13. TORONTO DATE
+// 6. USAGE COUNTER
 // ====================================================
 
 function getTorontoDateKey(date) {
-
-    const parts = new Intl.DateTimeFormat(
-
-        "en-US",
-
-        {
-
-            timeZone: "America/Toronto",
-
-            year: "numeric",
-
-            month: "2-digit",
-
-            day: "2-digit"
-
-        }
-
-    ).formatToParts(date);
-
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Toronto",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }).formatToParts(date);
 
     const values = {};
+    parts.forEach(part => values[part.type] = part.value);
+    return values.year + "-" + values.month + "-" + values.day;
+}
 
-    parts.forEach(part => {
+function getUsage() {
+    try {
+        const saved = JSON.parse(localStorage.getItem("ai_chat_usage") || "{}");
+        if (saved.date !== getTorontoDateKey(new Date())) {
+            return { date: getTorontoDateKey(new Date()), count: 0 };
+        }
+        return saved;
+    } catch (error) {
+        return { date: getTorontoDateKey(new Date()), count: 0 };
+    }
+}
 
-        values[part.type] = part.value;
+function updateUsageDisplay() {
+    const usage = getUsage();
+    usageCounter.innerText = `Usage: ${usage.count}/${DAILY_LIMIT} today`;
+}
 
+function incrementUsage() {
+    const usage = getUsage();
+    usage.count++;
+    localStorage.setItem("ai_chat_usage", JSON.stringify(usage));
+    updateUsageDisplay();
+}
+
+
+// ====================================================
+// 7. STATUS + NOTIFICATIONS
+// ====================================================
+
+function setStatus(message, color) {
+    status.innerText = "● " + message;
+    status.className = `text-xs px-3 py-2 rounded-full bg-gray-800 ${color}`;
+}
+
+function showFailoverNotification(message, type = "warning") {
+    let toast = document.getElementById("aiFailoverToast");
+
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "aiFailoverToast";
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        toast.className = "fixed top-24 right-4 z-50 max-w-sm p-4 rounded-xl shadow-2xl border text-sm whitespace-pre-wrap";
+        document.body.appendChild(toast);
+    }
+
+    toast.className =
+        "fixed top-24 right-4 z-50 max-w-sm p-4 rounded-xl shadow-2xl border text-sm whitespace-pre-wrap " +
+        (type === "error"
+            ? "bg-red-950 border-red-500 text-red-100"
+            : "bg-yellow-950 border-yellow-500 text-yellow-100");
+
+    toast.textContent = message;
+    toast.style.display = "block";
+
+    if (notificationTimer) clearTimeout(notificationTimer);
+    notificationTimer = setTimeout(() => toast.style.display = "none", 12000);
+}
+
+
+// ====================================================
+// 8. MODEL AVAILABILITY + TRAINING LOCK
+// ====================================================
+
+function applyModelStates(modelStates) {
+    if (!modelStates || !modelStates.failed) return;
+    currentFailureState = modelStates.failed;
+    applyTrainingRestrictions();
+}
+
+function applyTrainingRestrictions() {
+    const trainingActive = ["running", "stopping"].includes(trainingSnapshot.status);
+
+    Array.from(modelSelect.options).forEach(option => {
+        const model = option.value;
+        const baseLabel = option.dataset.baseLabel || option.textContent;
+        const failure = currentFailureState[model];
+        const pausedForTraining = trainingActive && isPersonalAI(model);
+
+        option.disabled = Boolean(failure) || pausedForTraining;
+
+        if (failure) {
+            option.textContent = baseLabel + " — UNAVAILABLE UNTIL 12 AM";
+            option.title = "Failed today: " + String(failure.reason || "Unavailable");
+        } else if (pausedForTraining) {
+            option.textContent = baseLabel + " — PAUSED DURING TRAINING";
+            option.title = "Personal AI models are paused during research training.";
+        } else {
+            option.textContent = baseLabel;
+            option.title = "";
+        }
     });
 
+    Array.from(trainingModel.options).forEach(option => {
+        const baseLabel = option.dataset.baseLabel || option.textContent;
+        const failure = currentFailureState[option.value];
+        option.disabled = Boolean(failure);
+        option.textContent = failure ? baseLabel + " — UNAVAILABLE" : baseLabel;
+        option.title = failure ? String(failure.reason || "Unavailable") : "";
+    });
 
-    return (
-
-        values.year + "-" +
-
-        values.month + "-" +
-
-        values.day
-
-    );
-
-}
-
-
-// ====================================================
-// 14. MIDNIGHT REFRESH
-// ====================================================
-
-function millisecondsUntilTorontoMidnight() {
-
-    const now = Date.now();
-
-    const todayKey =
-        getTorontoDateKey(new Date(now));
-
-
-    let low = now;
-
-    let high =
-        now + 36 * 60 * 60 * 1000;
-
-
-    while (high - low > 1000) {
-
-        const middle =
-            Math.floor((low + high) / 2);
-
-
-        if (
-
-            getTorontoDateKey(
-                new Date(middle)
-            ) === todayKey
-
-        ) {
-
-            low = middle;
-
-        } else {
-
-            high = middle;
-
-        }
-
+    // While training runs, automatically move away from personal AI.
+    if (trainingActive && isPersonalAI(modelSelect.value)) {
+        const fallbackOption = Array.from(modelSelect.options).find(option =>
+            !option.disabled && isExternalTrainingModel(option.value)
+        );
+        if (fallbackOption) modelSelect.value = fallbackOption.value;
     }
 
+    updateSearchAvailability();
 
-    return Math.max(
-        1000,
-        high - now + 2000
-    );
+    const hasHealthyResearchModel = Array.from(trainingModel.options)
+        .some(option => !option.disabled);
 
-}
-
-
-function scheduleMidnightRefresh() {
-
-    setTimeout(async () => {
-
-        await refreshModelStates();
-
-        scheduleMidnightRefresh();
-
-    }, millisecondsUntilTorontoMidnight());
-
+    startTrainingBtn.disabled = trainingActive || !hasHealthyResearchModel;
+    stopTrainingBtn.disabled = !trainingActive || trainingSnapshot.status === "stopping";
 }
 
 
 // ====================================================
-// 15. CHECK SERVER STATUS
+// 9. CHAT DISPLAY
 // ====================================================
 
-async function refreshModelStates() {
+function appendMessage(role, content) {
+    const isUser = role === "user";
+    const wrapper = document.createElement("div");
+    wrapper.className = `flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`;
 
-    try {
+    const avatar = document.createElement("div");
+    avatar.className = `${isUser ? "bg-emerald-600" : "bg-blue-600"} text-white rounded-full h-9 w-9 flex items-center justify-center font-bold text-xs shrink-0`;
+    avatar.innerText = isUser ? "You" : "AI";
 
-        const response = await fetch(
+    const bubble = document.createElement("div");
+    bubble.className = `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} message-bubble p-4 rounded-2xl max-w-[90%] md:max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap`;
+    bubble.textContent = content;
 
-            APPS_SCRIPT_URL,
+    wrapper.appendChild(avatar);
+    wrapper.appendChild(bubble);
+    chatContainer.appendChild(wrapper);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+    return wrapper;
+}
 
-            {
-
-                method: "POST",
-
-                headers: {
-
-                    "Content-Type":
-                        "text/plain;charset=utf-8"
-
-                },
-
-                body: JSON.stringify({
-
-                    action: "status"
-
-                })
-
-            }
-
-        );
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                "Status request failed: HTTP " + response.status
-            );
-
-        }
-
-
-        const data =
-            await response.json();
-
-
-        if (data.modelStates) {
-
-            applyModelStates(data.modelStates);
-
-        }
-
-    } catch (error) {
-
-        console.warn(
-            "Unable to refresh model status:",
-            error
-        );
-
+function extractReply(data) {
+    if (data.error) {
+        throw new Error(typeof data.error === "string"
+            ? data.error
+            : data.error.message || "Unknown server error.");
     }
 
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+        const content = data.choices[0].message.content;
+        if (typeof content === "string") return content;
+        if (Array.isArray(content)) return content.map(part => part.text || "").join("");
+    }
+
+    throw new Error("Unexpected AI response format.");
 }
-
-
-// ====================================================
-// 16. FAILED MODEL NAMES
-// ====================================================
 
 function getFailedNames(data) {
-
-    const failures = [
-
+    const attempts = [
         ...(data.failedAttempts || []),
-
         ...(data.skippedUnavailable || [])
-
     ];
-
-
-    const names = failures.map(item => {
-
-        return getModelLabel(item.model);
-
-    });
-
-
-    return [...new Set(names)];
-
+    return [...new Set(attempts.map(item => getModelLabel(item.model)))];
 }
 
 
 // ====================================================
-// 17. SEND MESSAGE
+// 10. SERVER STATUS REFRESH
+// ====================================================
+
+async function apiRequest(payload) {
+    const response = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+    });
+
+    const rawText = await response.text();
+    let data;
+    try {
+        data = JSON.parse(rawText);
+    } catch (error) {
+        throw new Error("Apps Script returned invalid JSON.");
+    }
+
+    if (!response.ok) {
+        throw new Error(data.error || "HTTP " + response.status);
+    }
+    return data;
+}
+
+async function refreshServerStatus() {
+    try {
+        const data = await apiRequest({ action: "status" });
+        if (data.modelStates) applyModelStates(data.modelStates);
+        if (data.training) updateTrainingDisplay(data.training);
+    } catch (error) {
+        console.warn("Could not refresh AI Hub status:", error);
+    }
+}
+
+
+// ====================================================
+// 11. CHAT SEND
 // ====================================================
 
 async function handleSend() {
-
     if (isSending) return;
 
-
-    const text =
-        userInput.value.trim();
-
-
+    const text = userInput.value.trim();
     if (!text) return;
 
-
-    // DAILY LIMIT
-
     if (getUsage().count >= DAILY_LIMIT) {
-
-        alert(
-            "Daily usage limit of 50 reached!"
-        );
-
+        alert("Daily usage limit of 50 reached!");
         return;
-
     }
 
+    // Refresh first so the UI knows whether personal AI is paused.
+    await refreshServerStatus();
+
+    if (modelSelect.disabled) return;
+    if (modelSelect.selectedOptions[0] && modelSelect.selectedOptions[0].disabled) {
+        showFailoverNotification("The selected model is unavailable. Please choose another available model.", "warning");
+        return;
+    }
 
     isSending = true;
-
     sendBtn.disabled = true;
-
     sendBtn.innerText = "Sending...";
-
-
-    // USER MESSAGE
-
     userInput.value = "";
-
     userInput.style.height = "auto";
 
-
     appendMessage("user", text);
+    messages.push({ role: "user", content: text });
+    if (messages.length > 100) messages = messages.slice(-100);
 
-
-    messages.push({
-
-        role: "user",
-
-        content: text
-
-    });
-
-
-    // Keep history to a reasonable size.
-
-    if (messages.length > 100) {
-
-        messages = messages.slice(-100);
-
-    }
-
-
-    const selectedModel =
-        modelSelect.value;
-
-
-    // SEARCH ONLY FOR PERSONAL AI
-
-    const useSearch =
-
-        (
-
-            selectedModel === "custom-gemma" ||
-
-            selectedModel === "cloudflare-backup"
-
-        ) &&
-
-        searchToggle.checked;
-
-
-    const loadingMessage =
-        appendMessage(
-            "assistant",
-            "Connecting to your AI queue..."
-        );
-
+    const selectedModel = modelSelect.value;
+    const trainingActive = ["running", "stopping"].includes(trainingSnapshot.status);
+    const useSearch = isPersonalAI(selectedModel) && !trainingActive && searchToggle.checked;
+    const loadingMessage = appendMessage("assistant", "Connecting to your AI queue...");
 
     try {
+        setStatus("Checking AI queue", "text-yellow-400");
 
-        setStatus(
-            "Checking AI queue",
-            "text-yellow-400"
-        );
-
-
-        const payload = {
-
+        const data = await apiRequest({
             model: selectedModel,
-
             messages: messages,
-
             useSearch: useSearch,
-
             useMemory: true,
-
             logToSheet: true
-
-        };
-
-
-        const response = await fetch(
-
-            APPS_SCRIPT_URL,
-
-            {
-
-                method: "POST",
-
-                headers: {
-
-                    "Content-Type":
-                        "text/plain;charset=utf-8"
-
-                },
-
-                body: JSON.stringify(payload)
-
-            }
-
-        );
-
-
-        const rawText =
-            await response.text();
-
-
-        let data;
-
-
-        try {
-
-            data = JSON.parse(rawText);
-
-        } catch {
-
-            throw new Error(
-                "Apps Script returned invalid JSON."
-            );
-
-        }
-
-
-        // UPDATE MODEL AVAILABILITY
-
-        if (data.modelStates) {
-
-            applyModelStates(data.modelStates);
-
-        }
-
-
-        // =================================================
-        // ALL MODELS FAILED
-        // =================================================
-
-        if (data.allModelsFailed) {
-
-            loadingMessage.remove();
-
-
-            const failedNames =
-                getFailedNames(data);
-
-
-            const failureMessage =
-
-                "ALL AVAILABLE AI MODELS FAILED.\n\n" +
-
-                (
-
-                    failedNames.length
-
-                        ? "Unavailable models:\n" +
-                          failedNames.join("\n") +
-                          "\n\n"
-
-                        : ""
-
-                ) +
-
-                "No AI response could be generated.\n\n" +
-
-                "Failed models will be disabled until " +
-
-                "12:00 AM Toronto time.";
-
-
-            appendMessage(
-
-                "assistant",
-
-                "⚠️ " + failureMessage
-
-            );
-
-
-            showFailoverNotification(
-
-                failureMessage,
-
-                "error"
-
-            );
-
-
-            activeModelLabel.innerText =
-                "No available AI models";
-
-
-            setStatus(
-                "All models unavailable",
-                "text-red-400"
-            );
-
-
-            // Keep the question visible in the chat,
-            // but remove it from active AI history.
-
-            if (
-
-                messages.length &&
-
-                messages[messages.length - 1].role === "user" &&
-
-                messages[messages.length - 1].content === text
-
-            ) {
-
-                messages.pop();
-
-            }
-
-
-            return;
-
-        }
-
-
-        // =================================================
-        // OTHER SERVER ERRORS
-        // =================================================
-
-        if (!response.ok || data.error) {
-
-            throw new Error(
-                data.error || "Unknown server error."
-            );
-
-        }
-
-
-        // =================================================
-        // SUCCESSFUL RESPONSE
-        // =================================================
-
-        const reply =
-            extractReply(data);
-
-
-        loadingMessage.remove();
-
-
-        appendMessage(
-            "assistant",
-            reply
-        );
-
-
-        messages.push({
-
-            role: "assistant",
-
-            content: reply
-
         });
 
+        if (data.modelStates) applyModelStates(data.modelStates);
+        if (data.training) updateTrainingDisplay(data.training);
 
+        if (data.allModelsFailed) {
+            loadingMessage.remove();
+            const names = getFailedNames(data);
+            const failureMessage =
+                "ALL AVAILABLE AI MODELS FAILED.\n\n" +
+                (names.length ? "Unavailable models:\n" + names.join("\n") + "\n\n" : "") +
+                "No AI response could be generated. Failed models are disabled until 12:00 AM Toronto time.";
+            appendMessage("assistant", "⚠️ " + failureMessage);
+            showFailoverNotification(failureMessage, "error");
+            activeModelLabel.innerText = "No available AI models";
+            setStatus("All models unavailable", "text-red-400");
+            messages.pop();
+            return;
+        }
+
+        if (data.error) throw new Error(data.error);
+
+        const reply = extractReply(data);
+        loadingMessage.remove();
+        appendMessage("assistant", reply);
+        messages.push({ role: "assistant", content: reply });
         incrementUsage();
 
+        const activeModel = data.activeModel || data.model || selectedModel;
+        const activeName = getModelLabel(activeModel);
+        activeModelLabel.innerText = activeName;
 
-        // =================================================
-        // ACTIVE MODEL
-        // =================================================
+        const hadFailures = (data.failedAttempts || []).length > 0 ||
+            (data.skippedUnavailable || []).length > 0;
 
-        const activeModel =
-
-            data.activeModel ||
-
-            data.model;
-
-
-        const activeName =
-            getModelLabel(activeModel);
-
-
-        activeModelLabel.innerText =
-            activeName;
-
-
-        // =================================================
-        // FAILOVER NOTIFICATION
-        // =================================================
-
-        const failures =
-            data.failedAttempts || [];
-
-        const skipped =
-            data.skippedUnavailable || [];
-
-
-        const hadFailures =
-            failures.length > 0 ||
-            skipped.length > 0;
-
-
-        const usedFallback =
-            data.usedFallback === true;
-
-
-        if (usedFallback || hadFailures) {
-
-            const failedNames =
-                getFailedNames(data);
-
-
-            const failedText =
-
-                failedNames.length
-
-                    ? failedNames.join(", ")
-
-                    : getModelLabel(selectedModel);
-
-
+        if (data.usedFallback || hadFailures) {
+            const failedNames = getFailedNames(data);
+            const failedText = failedNames.length ? failedNames.join(", ") : getModelLabel(selectedModel);
             const notification =
-
-                "⚠️ AI MODEL FAILURE\n\n" +
-
-                failedText +
-
-                " failed or was unavailable.\n\n" +
-
-                "Automatically using:\n" +
-
+                "⚠️ AI MODEL FAILURE\n\n" + failedText +
+                " failed or was unavailable.\n\nAutomatically using:\n" +
                 activeName +
-
-                "\n\n" +
-
-                "Failed models are unavailable until " +
-
-                "12:00 AM Toronto time.";
-
-
-            showFailoverNotification(
-
-                notification,
-
-                "warning"
-
-            );
-
-
-            setStatus(
-
-                "Backup: " + activeName,
-
-                "text-yellow-400"
-
-            );
-
+                "\n\nFailed models are unavailable until 12:00 AM Toronto time.";
+            showFailoverNotification(notification, "warning");
+            setStatus("Backup: " + activeName, "text-yellow-400");
         } else {
-
-            setStatus(
-
-                "Connected: " + activeName,
-
-                "text-green-400"
-
-            );
-
+            setStatus("Connected: " + activeName, "text-green-400");
         }
-
-
-        // =================================================
-        // CLOUD MEMORY
-        // =================================================
 
         if (data.memorySaved) {
-
-            memoryStatus.innerText =
-                "☁ Cloud Memory: Synced";
-
-
-            memoryStatus.className =
-
-                "text-xs bg-green-900/30 text-green-300 px-3 py-2 rounded-full";
-
+            memoryStatus.innerText = "☁ Cloud Memory: Synced";
+            memoryStatus.className = "text-xs bg-green-900/30 text-green-300 px-3 py-2 rounded-full";
         } else if (data.memoryWarning) {
-
-            memoryStatus.innerText =
-                "☁ Cloud Memory: Warning";
-
-
-            appendMessage(
-
-                "assistant",
-
-                "⚠️ Memory warning: " +
-                data.memoryWarning
-
-            );
-
+            memoryStatus.innerText = "☁ Cloud Memory: Warning";
+            appendMessage("assistant", "⚠️ " + data.memoryWarning);
         } else {
-
-            memoryStatus.innerText =
-                "☁ Cloud Memory: Not confirmed";
-
+            memoryStatus.innerText = "☁ Cloud Memory: Not confirmed";
         }
 
-
-        // =================================================
-        // GOOGLE SHEETS WARNING
-        // =================================================
-
-        if (data.loggingWarning) {
-
-            appendMessage(
-
-                "assistant",
-
-                "⚠️ " + data.loggingWarning
-
-            );
-
+        if (data.trainingKnowledgeWarning) {
+            appendMessage("assistant", "⚠️ " + data.trainingKnowledgeWarning);
         }
-
-
-        // =================================================
-        // SEARCH WARNING
-        // =================================================
-
-        if (data.searchWarning) {
-
-            appendMessage(
-
-                "assistant",
-
-                "⚠️ " + data.searchWarning
-
-            );
-
-        }
-
+        if (data.loggingWarning) appendMessage("assistant", "⚠️ " + data.loggingWarning);
+        if (data.searchWarning) appendMessage("assistant", "⚠️ " + data.searchWarning);
 
     } catch (error) {
-
         loadingMessage.remove();
-
-
-        appendMessage(
-
-            "assistant",
-
-            "⚠️ Connection error: " +
-
-            error.message
-
-        );
-
-
+        appendMessage("assistant", "⚠️ Connection error: " + error.message);
         showFailoverNotification(
-
-            "The AI Hub could not communicate with Apps Script.\n\n" +
-
-            "Automatic failover could not be confirmed.\n\n" +
-
-            "Check your internet connection and Apps Script deployment.",
-
+            "The AI Hub could not complete the request.\n\n" + error.message,
             "error"
-
         );
-
-
-        setStatus(
-
-            "Server connection failed",
-
-            "text-red-400"
-
-        );
-
-
+        setStatus("Connection error", "text-red-400");
+        memoryStatus.innerText = "☁ Cloud Memory: Unconfirmed";
+        if (messages.length && messages[messages.length - 1].role === "user") messages.pop();
         console.error(error);
-
-
-        memoryStatus.innerText =
-            "☁ Cloud Memory: Unconfirmed";
-
-
-        if (
-
-            messages.length &&
-
-            messages[messages.length - 1].role === "user" &&
-
-            messages[messages.length - 1].content === text
-
-        ) {
-
-            messages.pop();
-
-        }
-
     } finally {
-
         isSending = false;
-
         sendBtn.disabled = false;
-
         sendBtn.innerText = "Send";
-
         userInput.focus();
+    }
+}
 
+sendBtn.addEventListener("click", handleSend);
+
+userInput.addEventListener("keydown", event => {
+    if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        handleSend();
+    }
+});
+
+userInput.addEventListener("input", function () {
+    this.style.height = "auto";
+    this.style.height = Math.min(this.scrollHeight, 180) + "px";
+});
+
+
+// ====================================================
+// 12. TRAINING STATE + DISPLAY
+// ====================================================
+
+function formatTrainingTime(seconds) {
+    seconds = Math.max(0, seconds || 0);
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return String(minutes).padStart(2, "0") + ":" + String(remainder).padStart(2, "0");
+}
+
+function updateTrainingDisplay(state) {
+    if (!state) return;
+
+    const wasActive = wasTrainingActive;
+    const nowActive = ["running", "stopping"].includes(state.status);
+
+    if (nowActive && !wasActive) {
+        previousSelectedModel = modelSelect.value;
     }
 
+    trainingSnapshot = state;
+    wasTrainingActive = nowActive;
+
+    // Apply model restrictions and health states.
+    applyTrainingRestrictions();
+
+    if (!nowActive && wasActive) {
+        if (previousSelectedModel && !currentFailureState[previousSelectedModel]) {
+            modelSelect.value = previousSelectedModel;
+        }
+        previousSelectedModel = null;
+        updateSearchAvailability();
+    }
+
+    const statusNames = {
+        inactive: "Not running",
+        running: "Researching",
+        stopping: "Wrapping up current article",
+        ended: "Finished"
+    };
+
+    trainingStatus.innerText = statusNames[state.status] || state.status || "Unknown";
+    trainingCount.innerText = state.processedCount || 0;
+    trainingCurrent.innerText = state.currentTitle || (nowActive ? "Preparing next article..." : "Nothing yet.");
+
+    if (nowActive && state.endAt) {
+        const remaining = Math.max(0, Math.ceil((state.endAt - Date.now()) / 1000));
+        trainingTimer.innerText = formatTrainingTime(remaining);
+        const total = Number(state.durationMinutes || 0) * 60;
+        const elapsed = Math.max(0, total - remaining);
+        const percent = total > 0 ? Math.min(100, (elapsed / total) * 100) : 0;
+        trainingProgress.style.width = percent + "%";
+    } else {
+        trainingTimer.innerText = "--";
+        trainingProgress.style.width = state.status === "ended" ? "100%" : "0%";
+    }
+
+    trainingLearned.replaceChildren();
+    const learned = state.latestLearned || [];
+
+    if (!learned.length) {
+        const empty = document.createElement("p");
+        empty.className = "text-gray-500";
+        empty.textContent = "No research collected yet.";
+        trainingLearned.appendChild(empty);
+    }
+
+    learned.forEach(item => {
+        const card = document.createElement("div");
+        card.className = "bg-gray-900 border border-gray-800 rounded-lg p-3";
+
+        const title = document.createElement("strong");
+        title.className = "block text-gray-200";
+        title.textContent = item.title || "Research article";
+
+        const summary = document.createElement("p");
+        summary.className = "text-gray-400 text-xs mt-2";
+        summary.textContent = item.summary || "";
+
+        card.appendChild(title);
+        card.appendChild(summary);
+
+        if (item.sourceUrl && item.sourceUrl.startsWith("https://en.wikipedia.org/")) {
+            const link = document.createElement("a");
+            link.href = item.sourceUrl;
+            link.target = "_blank";
+            link.rel = "noopener noreferrer";
+            link.className = "text-blue-400 text-xs inline-block mt-2";
+            link.textContent = "View source ↗";
+            card.appendChild(link);
+        }
+
+        trainingLearned.appendChild(card);
+    });
+
+    if (state.lastError) {
+        trainingMessage.innerText = "⚠ Temporary issue: " + state.lastError + ". The saved article will be retried.";
+    } else if (state.status === "stopping") {
+        trainingMessage.innerText = "Stop requested. The current article will finish before the session is closed.";
+    } else if (nowActive) {
+        trainingMessage.innerText = "Research is running in the background. Gemini, Groq and OpenRouter remain available for chat.";
+    } else if (state.status === "ended") {
+        trainingMessage.innerText = "Training ended: " + (state.finishReason || "Session completed.") + " Articles learned: " + (state.processedCount || 0) + ".";
+    } else {
+        trainingMessage.innerText = "Training is currently inactive.";
+    }
 }
 
 
 // ====================================================
-// 18. SEND BUTTON
+// 13. TRAINING API
 // ====================================================
 
-sendBtn.addEventListener(
-    "click",
-    handleSend
-);
+async function trainingRequest(payload) {
+    const data = await apiRequest(payload);
+    if (data.error) throw new Error(data.error);
+    return data;
+}
+
+async function refreshTrainingStatus() {
+    try {
+        const data = await trainingRequest({ action: "trainingStatus" });
+        if (data.training) updateTrainingDisplay(data.training);
+        if (data.modelStates) applyModelStates(data.modelStates);
+    } catch (error) {
+        console.warn("Could not refresh training status:", error);
+        trainingMessage.innerText = "Could not retrieve training status. The server will be checked again.";
+    }
+}
 
 
 // ====================================================
-// 19. KEYBOARD SHORTCUTS
+// 14. START TRAINING
 // ====================================================
 
-userInput.addEventListener(
+async function startTraining() {
+    if (["running", "stopping"].includes(trainingSnapshot.status)) return;
 
-    "keydown",
-
-    function(event) {
-
-        if (
-
-            event.key === "Enter" &&
-
-            !event.shiftKey
-
-        ) {
-
-            event.preventDefault();
-
-            handleSend();
-
-        }
-
+    const topic = trainingTopic.value.trim();
+    if (!topic) {
+        alert("Please enter a topic for your AI to research.");
+        trainingTopic.focus();
+        return;
     }
 
-);
-
-
-// ====================================================
-// 20. AUTO-RESIZE TEXTAREA
-// ====================================================
-
-userInput.addEventListener(
-
-    "input",
-
-    function() {
-
-        this.style.height = "auto";
-
-        this.style.height =
-
-            Math.min(
-                this.scrollHeight,
-                180
-            ) + "px";
-
+    const model = trainingModel.value;
+    if (!isExternalTrainingModel(model) || currentFailureState[model]) {
+        alert("Choose an available Gemini, Groq or OpenRouter model for research summarizing.");
+        return;
     }
 
-);
+    startTrainingBtn.disabled = true;
+    startTrainingBtn.innerText = "Starting...";
+    trainingMessage.innerText = "Searching for source articles...";
 
+    try {
+        const data = await trainingRequest({
+            action: "trainingStart",
+            topic: topic,
+            durationMinutes: Number(trainingDuration.value),
+            summarizerModel: model
+        });
 
-// ====================================================
-// 21. REFRESH WHEN RETURNING TO PAGE
-// ====================================================
+        if (!data.ok) throw new Error(data.message || "Training could not start.");
+        if (data.training) updateTrainingDisplay(data.training);
+        await refreshServerStatus();
 
-window.addEventListener(
-
-    "focus",
-
-    refreshModelStates
-
-);
-
-
-document.addEventListener(
-
-    "visibilitychange",
-
-    function() {
-
-        if (!document.hidden) {
-
-            refreshModelStates();
-
-        }
-
+        showFailoverNotification(
+            "🧠 RESEARCH TRAINING STARTED\n\nTopic: " + topic +
+            "\nDuration: " + trainingDuration.value + " minutes.\n\n" +
+            "Your personal AI models are paused until training ends.",
+            "warning"
+        );
+    } catch (error) {
+        trainingMessage.innerText = "Could not start training: " + error.message;
+        showFailoverNotification("Training could not start:\n\n" + error.message, "error");
+    } finally {
+        startTrainingBtn.innerText = "Start Training";
+        await refreshTrainingStatus();
     }
-
-);
-
-
-// ====================================================
-// 22. PERIODIC SYNCHRONIZATION
-// ====================================================
-
-setInterval(
-
-    refreshModelStates,
-
-    STATUS_REFRESH_INTERVAL
-
-);
+}
 
 
 // ====================================================
-// 23. INITIALIZATION
+// 15. STOP TRAINING
+// ====================================================
+
+async function stopTraining() {
+    if (!["running", "stopping"].includes(trainingSnapshot.status)) return;
+
+    stopTrainingBtn.disabled = true;
+    trainingStatus.innerText = "Wrapping up";
+    trainingMessage.innerText = "Stop requested. The current article will finish first.";
+
+    try {
+        const data = await trainingRequest({ action: "trainingStop" });
+        if (data.training) updateTrainingDisplay(data.training);
+
+        showFailoverNotification(
+            "Training stop requested.\n\nThe current research article will finish before the session closes.",
+            "warning"
+        );
+    } catch (error) {
+        showFailoverNotification("Could not request stop:\n\n" + error.message, "error");
+        await refreshTrainingStatus();
+    }
+}
+
+
+// ====================================================
+// 16. TRAINING PANEL CONTROLS
+// ====================================================
+
+openTrainingBtn.addEventListener("click", () => {
+    const opening = trainingPanel.classList.contains("hidden");
+    trainingPanel.classList.toggle("hidden");
+    openTrainingBtn.innerText = opening ? "Close Training" : "🧠 Train";
+    if (opening) refreshTrainingStatus();
+});
+
+startTrainingBtn.addEventListener("click", startTraining);
+stopTrainingBtn.addEventListener("click", stopTraining);
+
+
+// ====================================================
+// 17. REFRESH / RECOVERY
+// ====================================================
+
+window.addEventListener("focus", refreshServerStatus);
+
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshServerStatus();
+});
+
+setInterval(refreshServerStatus, STATUS_REFRESH_INTERVAL);
+setInterval(() => {
+    if (["running", "stopping"].includes(trainingSnapshot.status)) {
+        updateTrainingDisplay(trainingSnapshot);
+    }
+}, 1000);
+
+
+// ====================================================
+// 18. INITIALIZATION
 // ====================================================
 
 updateUsageDisplay();
-
 updateSearchAvailability();
-
-setStatus(
-    "Connecting to AI Hub",
-    "text-yellow-400"
-);
-
-refreshModelStates();
-
-scheduleMidnightRefresh();
-
+setStatus("Connecting to AI Hub", "text-yellow-400");
+refreshServerStatus();
 
 </script>
-
 </body>
 </html>
