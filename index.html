@@ -8,23 +8,28 @@
 </head>
 <body class="bg-gray-900 text-gray-100 flex flex-col h-screen">
     <!-- Header -->
-    <header class="bg-gray-800 border-b border-gray-700 p-4 flex flex-wrap justify-between items-center gap-4">
+    <header class="bg-gray-800 border-b border-gray-700 p-4 flex flex-wrap justify-between items-center gap-3">
         <h1 class="text-xl font-bold flex items-center gap-2">🤖 AI Hub & Dataset Collector</h1>
-        <div class="flex items-center gap-4 flex-wrap">
+        <div class="flex items-center gap-3 flex-wrap">
             <!-- Model Selector -->
             <select id="modelSelect" class="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none">
                 <option value="custom-gemma">My Fine-Tuned Gemma 2B (Colab)</option>
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="or/deepseek/deepseek-chat:free">OpenRouter: DeepSeek V3 (Free)</option>
+                <option value="or/openrouter/free">OpenRouter: Auto Free</option>
                 <option value="groq/llama-3.3-70b-versatile">Groq: Llama 3.3 70B</option>
             </select>
-            <!-- Search Toggle -->
-            <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
-                <input type="checkbox" id="searchToggle" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0">
-                <span>Web Search Grounding</span>
+
+            <!-- Quick Colab Tunnel Input (Saves automatically) -->
+            <input id="colabUrlInput" type="text" placeholder="https://....trycloudflare.com" class="bg-gray-700 border border-gray-600 rounded px-2.5 py-1.5 text-xs w-56 focus:outline-none focus:border-blue-500" title="Paste base Cloudflare URL here">
+
+            <!-- Search Toggle (ON BY DEFAULT) -->
+            <label class="flex items-center gap-2 text-sm cursor-pointer select-none bg-gray-700/60 px-2.5 py-1.5 rounded border border-gray-600">
+                <input type="checkbox" id="searchToggle" checked class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0">
+                <span>Web Search</span>
             </label>
+
             <!-- Usage Counter -->
-            <div id="usageCounter" class="text-xs bg-gray-700 px-2.5 py-1 rounded text-gray-300">
+            <div id="usageCounter" class="text-xs bg-gray-700 px-2.5 py-1.5 rounded text-gray-300">
                 Usage: 0/50 today
             </div>
         </div>
@@ -35,7 +40,7 @@
         <div class="flex items-start gap-3">
             <div class="bg-blue-600 text-white rounded-full h-8 w-8 flex items-center justify-center font-bold shrink-0 text-xs">AI</div>
             <div class="bg-gray-800 border border-gray-700 p-3.5 rounded-2xl max-w-[80%] text-sm leading-relaxed">
-                Ready! Select your model above, type a message, and every interaction will automatically log to your Google Sheet for fine-tuning.
+                Ready! Web Search is ON by default. Select your model above, type a message, and every interaction will automatically log to your Google Sheet.
             </div>
         </div>
     </main>
@@ -49,11 +54,25 @@
     </footer>
 
     <script>
-        // CONFIGURATION CONSTANTS
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxDaZYcylrw4dps4kfQsosJSThOzRWOiN_07g57b6NddUofisi7Ul19whVwXu6wuM66/exec";
-        const COLAB_GEMMA_URL = "https://chapter-filename-progress-four.trycloudflare.com/v1/chat/completions";
+        const DEFAULT_COLAB_BASE = "https://chapter-filename-progress-four.trycloudflare.com";
 
         let messages = [];
+
+        // Load & save Colab Tunnel URL dynamically
+        const colabInput = document.getElementById("colabUrlInput");
+        colabInput.value = localStorage.getItem("saved_colab_url") || DEFAULT_COLAB_BASE;
+        colabInput.addEventListener("change", () => {
+            localStorage.setItem("saved_colab_url", colabInput.value.trim());
+        });
+
+        function getFullColabUrl() {
+            let base = colabInput.value.trim().replace(/\/+$/, "");
+            if (!base.endsWith("/v1/chat/completions")) {
+                base += "/v1/chat/completions";
+            }
+            return base;
+        }
 
         // Usage Capping Management (50/day)
         function checkAndIncrementUsage() {
@@ -63,7 +82,7 @@
                 usageData = { date: today, count: 0 };
             }
             if (usageData.count >= 50) {
-                alert("Daily usage limit of 50 reached! Run `localStorage.removeItem('ai_chat_usage')` in console to reset.");
+                alert("Daily usage limit of 50 reached!");
                 return false;
             }
             usageData.count++;
@@ -72,7 +91,6 @@
             return true;
         }
 
-        // Load initial usage display
         (function() {
             const today = new Date().toISOString().slice(0, 10);
             let usageData = JSON.parse(localStorage.getItem("ai_chat_usage") || "{}");
@@ -95,23 +113,31 @@
             const selectedModel = document.getElementById("modelSelect").value;
             const useSearch = document.getElementById("searchToggle").checked;
 
-            const loadingId = appendMessage("assistant", "Thinking...", true);
+            const loadingId = appendMessage("assistant", "Thinking...");
 
             try {
-                // Using text/plain to bypass Google Apps Script CORS preflight block
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: "POST",
+                    redirect: "follow",
                     headers: { "Content-Type": "text/plain;charset=utf-8" },
                     body: JSON.stringify({
                         model: selectedModel,
                         useSearch: useSearch,
                         messages: messages,
-                        colabUrl: COLAB_GEMMA_URL
+                        colabUrl: getFullColabUrl()
                     })
                 });
 
-                const data = await response.json();
+                const rawText = await response.text();
                 removeMessage(loadingId);
+
+                let data;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (parseErr) {
+                    appendMessage("assistant", "⚠️ Apps Script returned HTML instead of JSON (check 'Who has access: Anyone' in Deployments):\n" + rawText.slice(0, 180));
+                    return;
+                }
 
                 if (data.error) {
                     appendMessage("assistant", "⚠️ Error: " + data.error);
@@ -120,11 +146,11 @@
                     appendMessage("assistant", reply);
                     messages.push({ role: "assistant", content: reply });
                 } else {
-                    appendMessage("assistant", "⚠️ Unexpected response format from backend.");
+                    appendMessage("assistant", "⚠️ Unexpected response format: " + rawText.slice(0, 180));
                 }
             } catch (err) {
                 removeMessage(loadingId);
-                appendMessage("assistant", "⚠️ Fetch failed: " + err.message);
+                appendMessage("assistant", "⚠️ Fetch failed: " + err.message + "\n(Tip: Hard-refresh with Ctrl+Shift+R or check Apps Script Deployment access = 'Anyone')");
             }
         }
 
