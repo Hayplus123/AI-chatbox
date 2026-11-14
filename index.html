@@ -1,226 +1,170 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My AI Training Chat & Hub</title>
-  <style>
-    :root {
-      --bg: #0f1117;
-      --panel: #181b23;
-      --border: #2a2f3d;
-      --text: #e6e8ef;
-      --muted: #8b92a5;
-      --accent: #4f8cff;
-      --user-bubble: #2563eb;
-      --ai-bubble: #1e222d;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-
-    /* Header */
-    header {
-      padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
-    }
-    .header-left, .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    header h1 { font-size: 1.05rem; font-weight: 600; }
-    .status-badge { font-size: 0.75rem; color: #4ade80; background: rgba(74, 222, 128, 0.1); padding: 4px 10px; border-radius: 20px; }
-    .usage-badge { font-size: 0.75rem; color: #60a5fa; background: rgba(96, 165, 250, 0.1); padding: 4px 10px; border-radius: 20px; }
-
-    /* Search Toggle & Model Selector */
-    .search-toggle {
-      display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text);
-      background: var(--bg); padding: 7px 12px; border-radius: 8px; border: 1px solid var(--border); cursor: pointer;
-    }
-    select {
-      padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
-      background: var(--bg); color: var(--text); font-size: 0.85rem; cursor: pointer;
-    }
-    select:focus { outline: none; border-color: var(--accent); }
-
-    /* Chat Area */
-    .chat-box { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-    .msg { max-width: 75%; padding: 12px 16px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
-    .msg.user { align-self: flex-end; background: var(--user-bubble); color: #fff; border-bottom-right-radius: 2px; }
-    .msg.assistant { align-self: flex-start; background: var(--ai-bubble); border: 1px solid var(--border); border-bottom-left-radius: 2px; }
-    .msg .tag { font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; display: block; }
-
-    /* Input Bar */
-    .input-bar { padding: 16px 24px; background: var(--panel); border-top: 1px solid var(--border); display: flex; gap: 12px; }
-    .input-bar input { flex: 1; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 0.9rem; }
-    .input-bar input:focus { outline: none; border-color: var(--accent); }
-    .input-bar button { padding: 0 24px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
-    .input-bar button:hover { opacity: 0.9; }
-    .input-bar button:disabled { opacity: 0.5; cursor: not-allowed; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Model AI Hub & Dataset Collector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-gray-900 text-gray-100 flex flex-col h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4 flex flex-wrap justify-between items-center gap-4">
+        <h1 class="text-xl font-bold flex items-center gap-2">🤖 AI Hub & Dataset Collector</h1>
+        <div class="flex items-center gap-4 flex-wrap">
+            <!-- Model Selector -->
+            <select id="modelSelect" class="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none">
+                <option value="custom-gemma">My Fine-Tuned Gemma 2B (Colab)</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="or/deepseek/deepseek-chat:free">OpenRouter: DeepSeek V3 (Free)</option>
+                <option value="groq/llama-3.3-70b-versatile">Groq: Llama 3.3 70B</option>
+            </select>
+            <!-- Search Toggle -->
+            <label class="flex items-center gap-2 text-sm cursor-pointer select-none">
+                <input type="checkbox" id="searchToggle" class="rounded bg-gray-700 border-gray-600 text-blue-500 focus:ring-0">
+                <span>Web Search Grounding</span>
+            </label>
+            <!-- Usage Counter -->
+            <div id="usageCounter" class="text-xs bg-gray-700 px-2.5 py-1 rounded text-gray-300">
+                Usage: 0/50 today
+            </div>
+        </div>
+    </header>
 
-  <header>
-    <div class="header-left">
-      <h1>AI Hub & Dataset Collector</h1>
-      <span class="status-badge">● Auto-Logging Active</span>
-      <span class="usage-badge" id="usageBadge">Loading cap...</span>
-    </div>
+    <!-- Chat Container -->
+    <main id="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-4 max-w-4xl w-full mx-auto">
+        <div class="flex items-start gap-3">
+            <div class="bg-blue-600 text-white rounded-full h-8 w-8 flex items-center justify-center font-bold shrink-0 text-xs">AI</div>
+            <div class="bg-gray-800 border border-gray-700 p-3.5 rounded-2xl max-w-[80%] text-sm leading-relaxed">
+                Ready! Select your model above, type a message, and every interaction will automatically log to your Google Sheet for fine-tuning.
+            </div>
+        </div>
+    </main>
 
-    <div class="header-right">
-      <label class="search-toggle" title="Search Wikipedia public API before answering">
-        <input type="checkbox" id="searchToggle" />
-        <span>Web Search</span>
-      </label>
+    <!-- Input Area -->
+    <footer class="bg-gray-800 border-t border-gray-700 p-4">
+        <div class="max-w-4xl mx-auto flex gap-3">
+            <textarea id="userInput" rows="1" placeholder="Type your message here..." class="flex-1 bg-gray-700 border border-gray-600 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"></textarea>
+            <button id="sendBtn" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-3 rounded-xl text-sm transition-colors shrink-0">Send</button>
+        </div>
+    </footer>
 
-      <select id="modelSelect" title="Switch AI Model">
-        <optgroup label="OpenRouter 100% Free Tier">
-          <option value="or/openrouter/free">OpenRouter: Auto Free Router</option>
-          <option value="or/nvidia/nemotron-3.5-super-vl:free">OpenRouter: Nemotron 3.5 Super (Free)</option>
-          <option value="or/nvidia/nemotron-3.5-lightning:free">OpenRouter: Nemotron 3.5 Lightning (Free)</option>
-          <option value="or/nvidia/nemotron-3-ultra-550b-a55b:free">OpenRouter: Nemotron 3 Ultra 550B (Free)</option>
-        </optgroup>
-        <optgroup label="Groq Active Models (Fast)">
-          <option value="groq/openai/gpt-oss-20b">Groq: GPT-OSS 20B (1000 t/s)</option>
-          <option value="groq/openai/gpt-oss-120b">Groq: GPT-OSS 120B (Reasoning)</option>
-          <option value="groq/qwen/qwen3.8-27b">Groq: Qwen 3.8 27B</option>
-        </optgroup>
-        <optgroup label="Google Gemini">
-          <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
-          <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option>
-          <option value="gemini-4-argon">Gemini 4 Argon</option>
-        </optgroup>
-        <optgroup label="Custom Local Training">
-          <option value="custom-gemma">My Fine-Tuned Gemma 2B (Colab)</option>
-        </optgroup>
-      </select>
-    </div>
-  </header>
+    <script>
+        // CONFIGURATION CONSTANTS
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxDaZYcylrw4dps4kfQsosJSThOzRWOiN_07g57b6NddUofisi7Ul19whVwXu6wuM66/exec";
+        const COLAB_GEMMA_URL = "https://chapter-filename-progress-four.trycloudflare.com/v1/chat/completions";
 
-  <main class="chat-box" id="chatBox">
-    <div class="msg assistant">
-      <span class="tag">System</span>
-      <span class="body">Ready! Pick OpenRouter Free, Groq, or Gemini at the top right, toggle Web Search whenever you want live lookup facts, and chat away.</span>
-    </div>
-  </main>
+        let messages = [];
 
-  <form class="input-bar" id="chatForm">
-    <input type="text" id="userInput" placeholder="Type your message here..." autocomplete="off" required autofocus />
-    <button type="submit" id="sendBtn">Send</button>
-  </form>
+        // Usage Capping Management (50/day)
+        function checkAndIncrementUsage() {
+            const today = new Date().toISOString().slice(0, 10);
+            let usageData = JSON.parse(localStorage.getItem("ai_chat_usage") || "{}");
+            if (usageData.date !== today) {
+                usageData = { date: today, count: 0 };
+            }
+            if (usageData.count >= 50) {
+                alert("Daily usage limit of 50 reached! Run `localStorage.removeItem('ai_chat_usage')` in console to reset.");
+                return false;
+            }
+            usageData.count++;
+            localStorage.setItem("ai_chat_usage", JSON.stringify(usageData));
+            document.getElementById("usageCounter").innerText = `Usage: ${usageData.count}/50 today`;
+            return true;
+        }
 
-  <script>
-    // 👇 1. PASTE YOUR APPS SCRIPT WEB APP URL HERE
-    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxDaZYcylrw4dps4kfQsosJSThOzRWOiN_07g57b6NddUofisi7Ul19whVwXu6wuM66/exec";
+        // Load initial usage display
+        (function() {
+            const today = new Date().toISOString().slice(0, 10);
+            let usageData = JSON.parse(localStorage.getItem("ai_chat_usage") || "{}");
+            if (usageData.date === today) {
+                document.getElementById("usageCounter").innerText = `Usage: ${usageData.count}/50 today`;
+            }
+        })();
 
-    // 👇 2. (OPTIONAL) PASTE YOUR COLAB TUNNEL URL HERE WHEN TESTING GEMMA
-   const COLAB_GEMMA_URL = "https://chapter-filename-progress-four.trycloudflare.com/v1/chat/completions";
-    // DAILY USAGE CAP
-    const DAILY_LIMIT = 50;
+        async function handleSend() {
+            const inputEl = document.getElementById("userInput");
+            const text = inputEl.value.trim();
+            if (!text) return;
 
-    const modelSelect = document.getElementById("modelSelect");
-    const searchToggle = document.getElementById("searchToggle");
-    const chatBox = document.getElementById("chatBox");
-    const chatForm = document.getElementById("chatForm");
-    const userInput = document.getElementById("userInput");
-    const sendBtn = document.getElementById("sendBtn");
-    const usageBadge = document.getElementById("usageBadge");
+            if (!checkAndIncrementUsage()) return;
 
-    let conversation = [];
+            inputEl.value = "";
+            appendMessage("user", text);
+            messages.push({ role: "user", content: text });
 
-    function checkAndUpdateUsage() {
-      const today = new Date().toISOString().split('T')[0];
-      let usageData = JSON.parse(localStorage.getItem("ai_chat_usage") || "{}");
-      if (usageData.date !== today) usageData = { date: today, count: 0 };
+            const selectedModel = document.getElementById("modelSelect").value;
+            const useSearch = document.getElementById("searchToggle").checked;
 
-      const remaining = DAILY_LIMIT - usageData.count;
-      usageBadge.textContent = `Usage: ${usageData.count}/${DAILY_LIMIT} today`;
+            const loadingId = appendMessage("assistant", "Thinking...", true);
 
-      if (remaining <= 0) {
-        usageBadge.style.color = "#f87171";
-        usageBadge.style.background = "rgba(248, 113, 113, 0.1)";
-        return false;
-      }
-      return true;
-    }
+            try {
+                // Using text/plain to bypass Google Apps Script CORS preflight block
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain;charset=utf-8" },
+                    body: JSON.stringify({
+                        model: selectedModel,
+                        useSearch: useSearch,
+                        messages: messages,
+                        colabUrl: COLAB_GEMMA_URL
+                    })
+                });
 
-    function incrementUsage() {
-      const today = new Date().toISOString().split('T')[0];
-      let usageData = JSON.parse(localStorage.getItem("ai_chat_usage") || "{}");
-      if (usageData.date !== today) usageData = { date: today, count: 0 };
-      usageData.count += 1;
-      localStorage.setItem("ai_chat_usage", JSON.stringify(usageData));
-      checkAndUpdateUsage();
-    }
+                const data = await response.json();
+                removeMessage(loadingId);
 
-    checkAndUpdateUsage();
+                if (data.error) {
+                    appendMessage("assistant", "⚠️ Error: " + data.error);
+                } else if (data.choices && data.choices[0] && data.choices[0].message) {
+                    const reply = data.choices[0].message.content;
+                    appendMessage("assistant", reply);
+                    messages.push({ role: "assistant", content: reply });
+                } else {
+                    appendMessage("assistant", "⚠️ Unexpected response format from backend.");
+                }
+            } catch (err) {
+                removeMessage(loadingId);
+                appendMessage("assistant", "⚠️ Fetch failed: " + err.message);
+            }
+        }
 
-    function appendMessage(role, text, label) {
-      const div = document.createElement("div");
-      div.className = "msg " + role;
+        function appendMessage(role, text) {
+            const container = document.getElementById("chatContainer");
+            const msgId = "msg-" + Math.random().toString(36).substr(2, 9);
+            const isUser = role === "user";
 
-      const tagSpan = document.createElement("span");
-      tagSpan.className = "tag";
-      tagSpan.textContent = label;
+            const wrapper = document.createElement("div");
+            wrapper.id = msgId;
+            wrapper.className = `flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`;
 
-      const bodySpan = document.createElement("span");
-      bodySpan.className = "body";
-      bodySpan.textContent = text;
+            const avatar = document.createElement("div");
+            avatar.className = `${isUser ? "bg-emerald-600" : "bg-blue-600"} text-white rounded-full h-8 w-8 flex items-center justify-center font-bold text-xs shrink-0`;
+            avatar.innerText = isUser ? "You" : "AI";
 
-      div.appendChild(tagSpan);
-      div.appendChild(bodySpan);
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-      return { tagSpan, bodySpan };
-    }
+            const bubble = document.createElement("div");
+            bubble.className = `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} p-3.5 rounded-2xl max-w-[80%] text-sm leading-relaxed whitespace-pre-wrap`;
+            bubble.innerText = text;
 
-    chatForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!checkAndUpdateUsage()) {
-        alert("Daily usage cap reached! You have hit your 50-message limit for today.");
-        return;
-      }
+            wrapper.appendChild(avatar);
+            wrapper.appendChild(bubble);
+            container.appendChild(wrapper);
+            container.scrollTop = container.scrollHeight;
 
-      const text = userInput.value.trim();
-      if (!text) return;
+            return msgId;
+        }
 
-      const selectedModel = modelSelect.value;
-      const modelLabel = modelSelect.options[modelSelect.selectedIndex].text + (searchToggle.checked ? " + Web Search" : "");
+        function removeMessage(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
 
-      userInput.value = "";
-      sendBtn.disabled = true;
-      appendMessage("user", text, "You");
-      conversation.push({ role: "user", content: text });
-
-      const loading = appendMessage("assistant", searchToggle.checked ? "Searching & thinking..." : "Thinking...", modelLabel);
-
-      try {
-        const res = await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({
-            model: selectedModel,
-            useSearch: searchToggle.checked,
-            colabUrl: COLAB_GEMMA_URL,
-            messages: conversation
-          })
+        document.getElementById("sendBtn").addEventListener("click", handleSend);
+        document.getElementById("userInput").addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
         });
-
-        if (!res.ok) throw new Error("Server returned HTTP " + res.status);
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        const reply = data.choices[0].message.content;
-        loading.bodySpan.textContent = reply;
-        conversation.push({ role: "assistant", content: reply });
-
-        incrementUsage();
-      } catch (err) {
-        loading.tagSpan.textContent = "Error";
-        loading.bodySpan.textContent = err.message;
-        conversation.pop();
-      } finally {
-        sendBtn.disabled = false;
-        userInput.focus();
-      }
-    });
-  </script>
+    </script>
 </body>
 </html>
