@@ -39,6 +39,8 @@
         <div class="flex flex-wrap items-center gap-2">
             <span id="usageCounter" class="text-xs bg-red-900/30 text-red-400 px-3 py-2 rounded-full">Usage: 0/50 today</span>
             <span id="memoryStatus" class="text-xs bg-blue-900/30 text-blue-300 px-3 py-2 rounded-full">☁ Cloud Memory</span>
+            <button id="soundToggleBtn" type="button" aria-pressed="true" class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded-lg" title="Turn alert sounds on or off">🔊 Sound: On</button>
+            <button id="notificationToggleBtn" type="button" aria-pressed="false" class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded-lg" title="Enable or disable device notifications">🔔 Notifications: Off</button>
         </div>
     </div>
 
@@ -209,6 +211,8 @@ Use the Train panel to research a topic and save source-linked notes for future 
 </footer>
 
 
+<audio id="errorAudio" src="error.mp3" preload="auto"></audio>
+
 <script>
 // ====================================================
 // 1. CONFIGURATION
@@ -235,6 +239,9 @@ const usageCounter = document.getElementById("usageCounter");
 const status = document.getElementById("status");
 const memoryStatus = document.getElementById("memoryStatus");
 const activeModelLabel = document.getElementById("activeModelLabel");
+const soundToggleBtn = document.getElementById("soundToggleBtn");
+const notificationToggleBtn = document.getElementById("notificationToggleBtn");
+const errorAudio = document.getElementById("errorAudio");
 
 const openTrainingBtn = document.getElementById("openTrainingBtn");
 const trainingPanel = document.getElementById("trainingPanel");
@@ -263,6 +270,16 @@ let currentFailureState = {};
 let trainingSnapshot = { status: "inactive", processedCount: 0, latestLearned: [] };
 let previousSelectedModel = null;
 let wasTrainingActive = false;
+let lastTrainingError = "";
+let activeSpeechButton = null;
+let activeSpeechUtterance = null;
+let statusPollingTimer = null;
+let lastStatusPollError = "";
+let audioContext = null;
+let audioUnlocked = false;
+let soundsEnabled = localStorage.getItem("ai_hub_sounds_enabled") !== "false";
+let notificationsEnabled = localStorage.getItem("ai_hub_notifications_enabled") === "true";
+const notificationsSupported = window.isSecureContext && ("Notification" in window);
 
 // Keep original dropdown labels so status labels can be rebuilt cleanly.
 Array.from(modelSelect.options).forEach(option => {
@@ -378,6 +395,10 @@ function setStatus(message, color) {
 }
 
 function showFailoverNotification(message, type = "warning") {
+    if (type === "error") {
+        playErrorSound();
+        sendDeviceNotification("AI Hub error", message, "ai-hub-error");
+    }
     let toast = document.getElementById("aiFailoverToast");
 
     if (!toast) {
@@ -400,6 +421,226 @@ function showFailoverNotification(message, type = "warning") {
 
     if (notificationTimer) clearTimeout(notificationTimer);
     notificationTimer = setTimeout(() => toast.style.display = "none", 12000);
+}
+
+
+// ====================================================
+// 7A. SOUND + DEVICE NOTIFICATION SETTINGS
+// ====================================================
+
+function updateAlertButtons() {
+    soundToggleBtn.textContent = soundsEnabled ? "🔊 Sound: On" : "🔇 Sound: Off";
+    soundToggleBtn.setAttribute("aria-pressed", String(soundsEnabled));
+
+    if (!notificationsSupported) {
+        notificationsEnabled = false;
+        notificationToggleBtn.textContent = "🔔 Notifications: Unsupported";
+        notificationToggleBtn.disabled = true;
+        notificationToggleBtn.title = "This browser or connection does not support desktop notifications.";
+        notificationToggleBtn.setAttribute("aria-pressed", "false");
+        return;
+    }
+
+    if (Notification.permission !== "granted" && notificationsEnabled) {
+        notificationsEnabled = false;
+        localStorage.setItem("ai_hub_notifications_enabled", "false");
+    }
+
+    if (Notification.permission === "denied") {
+        notificationsEnabled = false;
+        notificationToggleBtn.textContent = "🔔 Notifications: Blocked";
+        notificationToggleBtn.title = "Notifications are blocked in browser settings. Change the site permission to allow them.";
+    } else {
+        notificationToggleBtn.textContent = notificationsEnabled
+            ? "🔔 Notifications: On"
+            : "🔔 Notifications: Off";
+        notificationToggleBtn.title = notificationsEnabled
+            ? "Device notifications are enabled. Click to turn them off."
+            : "Click to request permission and enable device notifications.";
+    }
+    notificationToggleBtn.disabled = false;
+    notificationToggleBtn.setAttribute("aria-pressed", String(notificationsEnabled));
+}
+
+function unlockAudio() {
+    if (audioUnlocked) return;
+    try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+            audioContext = audioContext || new AudioContextClass();
+            if (audioContext.state === "suspended") audioContext.resume();
+            audioUnlocked = true;
+        }
+    } catch (error) {
+        console.warn("Audio could not be unlocked:", error);
+    }
+}
+
+// Browsers require a user gesture before playing audio. The first click/tap
+// on the page unlocks the sound system for later training and reply alerts.
+document.addEventListener("pointerdown", unlockAudio, { once: true });
+document.addEventListener("keydown", unlockAudio, { once: true });
+
+function playPingSound() {
+    if (!soundsEnabled) return;
+    try {
+        unlockAudio();
+        if (!audioContext) return;
+        if (audioContext.state === "suspended") audioContext.resume();
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        const now = audioContext.currentTime;
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(880, now);
+        oscillator.frequency.exponentialRampToValueAtTime(660, now + 0.16);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start(now);
+        oscillator.stop(now + 0.23);
+    } catch (error) {
+        console.warn("Ping sound could not play:", error);
+    }
+}
+
+function playErrorSound() {
+    if (!soundsEnabled) return;
+    try {
+        unlockAudio();
+        errorAudio.currentTime = 0;
+        const playback = errorAudio.play();
+        if (playback && typeof playback.catch === "function") {
+            playback.catch(() => playPingSound());
+        }
+    } catch (error) {
+        playPingSound();
+    }
+}
+
+function sendDeviceNotification(title, body, tag) {
+    if (!notificationsEnabled || !notificationsSupported || Notification.permission !== "granted") {
+        return false;
+    }
+    try {
+        const notification = new Notification(title, {
+            body: String(body || "").slice(0, 220),
+            tag: tag || "ai-hub-alert",
+            renotify: true
+        });
+        notification.onclick = () => {
+            window.focus();
+            notification.close();
+        };
+        return true;
+    } catch (error) {
+        console.warn("Device notification could not be displayed:", error);
+        return false;
+    }
+}
+
+async function toggleDeviceNotifications() {
+    if (!notificationsSupported) return;
+
+    if (notificationsEnabled) {
+        notificationsEnabled = false;
+        localStorage.setItem("ai_hub_notifications_enabled", "false");
+        updateAlertButtons();
+        return;
+    }
+
+    try {
+        let permission = Notification.permission;
+        if (permission === "default") permission = await Notification.requestPermission();
+
+        if (permission === "granted") {
+            notificationsEnabled = true;
+            localStorage.setItem("ai_hub_notifications_enabled", "true");
+            sendDeviceNotification("AI Hub notifications enabled", "You will receive alerts for AI replies, completed training and errors.", "ai-hub-permission-test");
+        } else {
+            notificationsEnabled = false;
+            localStorage.setItem("ai_hub_notifications_enabled", "false");
+            showFailoverNotification(
+                permission === "denied"
+                    ? "Notifications are blocked. Allow notifications for this site in your browser settings."
+                    : "Notification permission was not granted.",
+                "warning"
+            );
+        }
+    } catch (error) {
+        notificationsEnabled = false;
+        localStorage.setItem("ai_hub_notifications_enabled", "false");
+        showFailoverNotification("Could not enable device notifications: " + error.message, "error");
+    }
+    updateAlertButtons();
+}
+
+function reportAppError(title, message, showToast = true) {
+    const fullMessage = (title ? title + "\n\n" : "") + (message || "An error occurred.");
+    if (showToast) {
+        showFailoverNotification(fullMessage, "error");
+    } else {
+        playErrorSound();
+        sendDeviceNotification(title || "AI Hub error", message || "An error occurred.", "ai-hub-error");
+    }
+}
+
+soundToggleBtn.addEventListener("click", () => {
+    soundsEnabled = !soundsEnabled;
+    localStorage.setItem("ai_hub_sounds_enabled", String(soundsEnabled));
+    updateAlertButtons();
+    if (soundsEnabled) playPingSound();
+});
+notificationToggleBtn.addEventListener("click", toggleDeviceNotifications);
+
+
+// ====================================================
+// 7B. READ ALOUD FOR AI RESPONSES
+// ====================================================
+
+function stopReadAloud() {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (activeSpeechButton) {
+        activeSpeechButton.textContent = "🔊 Read aloud";
+        activeSpeechButton = null;
+    }
+    activeSpeechUtterance = null;
+}
+
+function readAloud(text, button) {
+    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
+        showFailoverNotification("Read aloud is not supported by this browser.", "warning");
+        return;
+    }
+
+    if (activeSpeechButton === button) {
+        stopReadAloud();
+        return;
+    }
+
+    stopReadAloud();
+    const utterance = new SpeechSynthesisUtterance(String(text || ""));
+    activeSpeechButton = button;
+    activeSpeechUtterance = utterance;
+    button.textContent = "⏹ Stop reading";
+
+    const restoreButton = () => {
+        if (activeSpeechButton === button) {
+            button.textContent = "🔊 Read aloud";
+            activeSpeechButton = null;
+            activeSpeechUtterance = null;
+        }
+    };
+    utterance.onend = restoreButton;
+    utterance.onerror = restoreButton;
+
+    try {
+        window.speechSynthesis.speak(utterance);
+    } catch (error) {
+        restoreButton();
+        showFailoverNotification("Read aloud failed: " + error.message, "error");
+    }
 }
 
 
@@ -476,8 +717,29 @@ function appendMessage(role, content) {
     avatar.innerText = isUser ? "You" : "AI";
 
     const bubble = document.createElement("div");
-    bubble.className = `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} message-bubble p-4 rounded-2xl max-w-[90%] md:max-w-[85%] text-sm leading-relaxed whitespace-pre-wrap`;
-    bubble.textContent = content;
+    bubble.className = `${isUser ? "bg-blue-600 text-white" : "bg-gray-800 border border-gray-700 text-gray-100"} message-bubble p-4 rounded-2xl max-w-[90%] md:max-w-[85%] text-sm leading-relaxed`;
+
+    if (!isUser) {
+        const toolbar = document.createElement("div");
+        toolbar.className = "flex justify-end mb-3";
+        const speakButton = document.createElement("button");
+        speakButton.type = "button";
+        speakButton.className = "text-xs bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg px-3 py-1.5";
+        speakButton.textContent = "🔊 Read aloud";
+        speakButton.title = "Read this AI response aloud. Click again to stop.";
+        speakButton.addEventListener("click", () => readAloud(content, speakButton));
+        if (!("speechSynthesis" in window)) {
+            speakButton.disabled = true;
+            speakButton.title = "Read aloud is not supported by this browser.";
+        }
+        toolbar.appendChild(speakButton);
+        bubble.appendChild(toolbar);
+    }
+
+    const messageText = document.createElement("div");
+    messageText.className = "whitespace-pre-wrap";
+    messageText.textContent = content;
+    bubble.appendChild(messageText);
 
     wrapper.appendChild(avatar);
     wrapper.appendChild(bubble);
@@ -541,8 +803,14 @@ async function refreshServerStatus() {
         const data = await apiRequest({ action: "status" });
         if (data.modelStates) applyModelStates(data.modelStates);
         if (data.training) updateTrainingDisplay(data.training);
+        lastStatusPollError = "";
     } catch (error) {
+        const message = String(error && error.message ? error.message : error);
         console.warn("Could not refresh AI Hub status:", error);
+        if (message !== lastStatusPollError) {
+            reportAppError("Status refresh failed", message, false);
+        }
+        lastStatusPollError = message;
     }
 }
 
@@ -608,7 +876,7 @@ async function handleSend() {
                 (names.length ? "Unavailable models:\n" + names.join("\n") + "\n\n" : "") +
                 "No AI response could be generated. Failed models are disabled until 12:00 AM Toronto time.";
             appendMessage("assistant", "⚠️ " + failureMessage);
-            showFailoverNotification(failureMessage, "error");
+            reportAppError("All AI models failed", failureMessage, true);
             activeModelLabel.innerText = "No available AI models";
             setStatus("All models unavailable", "text-red-400");
             messages.pop();
@@ -622,15 +890,19 @@ async function handleSend() {
         appendMessage("assistant", reply);
         messages.push({ role: "assistant", content: reply });
         incrementUsage();
+        playPingSound();
 
         const activeModel = data.activeModel || data.model || selectedModel;
         const activeName = getModelLabel(activeModel);
         activeModelLabel.innerText = activeName;
+        sendDeviceNotification("AI responded", activeName + " has replied to your message.", "ai-hub-ai-response");
 
         const hadFailures = (data.failedAttempts || []).length > 0 ||
             (data.skippedUnavailable || []).length > 0;
 
         if (data.usedFallback || hadFailures) {
+            playErrorSound();
+            sendDeviceNotification("AI model fallback", "A model failed or was unavailable. AI Hub switched to " + activeName + ".", "ai-hub-model-fallback");
             const failedNames = getFailedNames(data);
             const failedText = failedNames.length ? failedNames.join(", ") : getModelLabel(selectedModel);
             const notification =
@@ -650,23 +922,28 @@ async function handleSend() {
         } else if (data.memoryWarning) {
             memoryStatus.innerText = "☁ Cloud Memory: Warning";
             appendMessage("assistant", "⚠️ " + data.memoryWarning);
+            reportAppError("Cloud memory warning", data.memoryWarning, false);
         } else {
             memoryStatus.innerText = "☁ Cloud Memory: Not confirmed";
         }
 
         if (data.trainingKnowledgeWarning) {
             appendMessage("assistant", "⚠️ " + data.trainingKnowledgeWarning);
+            reportAppError("Research knowledge warning", data.trainingKnowledgeWarning, false);
         }
-        if (data.loggingWarning) appendMessage("assistant", "⚠️ " + data.loggingWarning);
-        if (data.searchWarning) appendMessage("assistant", "⚠️ " + data.searchWarning);
+        if (data.loggingWarning) {
+            appendMessage("assistant", "⚠️ " + data.loggingWarning);
+            reportAppError("Spreadsheet logging warning", data.loggingWarning, false);
+        }
+        if (data.searchWarning) {
+            appendMessage("assistant", "⚠️ " + data.searchWarning);
+            reportAppError("Search warning", data.searchWarning, false);
+        }
 
     } catch (error) {
         loadingMessage.remove();
         appendMessage("assistant", "⚠️ Connection error: " + error.message);
-        showFailoverNotification(
-            "The AI Hub could not complete the request.\n\n" + error.message,
-            "error"
-        );
+        reportAppError("AI request failed", "The AI Hub could not complete the request.\n\n" + error.message, true);
         setStatus("Connection error", "text-red-400");
         memoryStatus.innerText = "☁ Cloud Memory: Unconfirmed";
         if (messages.length && messages[messages.length - 1].role === "user") messages.pop();
@@ -717,6 +994,22 @@ function updateTrainingDisplay(state) {
 
     trainingSnapshot = state;
     wasTrainingActive = nowActive;
+    scheduleStatusPolling();
+
+    // Notify only on a real transition from active training to ended.
+    if (wasActive && !nowActive && state.status === "ended") {
+        const completedText = "Training has finished. " + (state.processedCount || 0) + " article(s) were learned.";
+        playPingSound();
+        sendDeviceNotification("AI Hub training finished", completedText, "ai-hub-training-finished");
+        showFailoverNotification("🧠 TRAINING FINISHED\n\n" + completedText, "warning");
+    }
+
+    // Report each newly observed background training error only once.
+    const trainingError = String(state.lastError || "");
+    if (trainingError && trainingError !== lastTrainingError) {
+        reportAppError("Research training error", trainingError, true);
+    }
+    lastTrainingError = trainingError;
 
     // Apply model restrictions and health states.
     applyTrainingRestrictions();
@@ -822,6 +1115,7 @@ async function refreshTrainingStatus() {
     } catch (error) {
         console.warn("Could not refresh training status:", error);
         trainingMessage.innerText = "Could not retrieve training status. The server will be checked again.";
+        reportAppError("Training status error", error.message || String(error), false);
     }
 }
 
@@ -870,7 +1164,7 @@ async function startTraining() {
         );
     } catch (error) {
         trainingMessage.innerText = "Could not start training: " + error.message;
-        showFailoverNotification("Training could not start:\n\n" + error.message, "error");
+        reportAppError("Training could not start", error.message, true);
     } finally {
         startTrainingBtn.innerText = "Start Training";
         await refreshTrainingStatus();
@@ -898,7 +1192,7 @@ async function stopTraining() {
             "warning"
         );
     } catch (error) {
-        showFailoverNotification("Could not request stop:\n\n" + error.message, "error");
+        reportAppError("Could not stop training", error.message, true);
         await refreshTrainingStatus();
     }
 }
@@ -923,13 +1217,28 @@ stopTrainingBtn.addEventListener("click", stopTraining);
 // 17. REFRESH / RECOVERY
 // ====================================================
 
-window.addEventListener("focus", refreshServerStatus);
-
-document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) refreshServerStatus();
+window.addEventListener("focus", () => {
+    refreshServerStatus();
+    scheduleStatusPolling();
 });
 
-setInterval(refreshServerStatus, STATUS_REFRESH_INTERVAL);
+document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+        refreshServerStatus();
+        scheduleStatusPolling();
+    }
+});
+
+function scheduleStatusPolling() {
+    if (statusPollingTimer) clearTimeout(statusPollingTimer);
+    const trainingActive = ["running", "stopping"].includes(trainingSnapshot.status);
+    const delay = trainingActive ? 15000 : STATUS_REFRESH_INTERVAL;
+    statusPollingTimer = setTimeout(async () => {
+        await refreshServerStatus();
+        scheduleStatusPolling();
+    }, delay);
+}
+
 setInterval(() => {
     if (["running", "stopping"].includes(trainingSnapshot.status)) {
         updateTrainingDisplay(trainingSnapshot);
@@ -942,9 +1251,10 @@ setInterval(() => {
 // ====================================================
 
 updateUsageDisplay();
+updateAlertButtons();
 updateSearchAvailability();
 setStatus("Connecting to AI Hub", "text-yellow-400");
-refreshServerStatus();
+refreshServerStatus().finally(scheduleStatusPolling);
 
 </script>
 </body>
