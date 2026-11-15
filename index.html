@@ -41,6 +41,14 @@
             <span id="memoryStatus" class="text-xs bg-blue-900/30 text-blue-300 px-3 py-2 rounded-full">☁ Cloud Memory</span>
             <button id="soundToggleBtn" type="button" aria-pressed="true" class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded-lg" title="Turn alert sounds on or off">🔊 Sound: On</button>
             <button id="notificationToggleBtn" type="button" aria-pressed="false" class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded-lg" title="Enable or disable device notifications">🔔 Notifications: Off</button>
+            <select id="readAloudVoiceSelect" aria-label="Read-aloud voice" title="Choose the natural Gemini read-aloud voice" class="text-xs bg-gray-800 hover:bg-gray-700 border border-gray-700 px-2 py-2 rounded-lg">
+                <option value="Achird" selected>Voice: Friendly</option>
+                <option value="Sulafat">Voice: Warm</option>
+                <option value="Callirrhoe">Voice: Easy-going</option>
+                <option value="Leda">Voice: Youthful</option>
+                <option value="Aoede">Voice: Breezy</option>
+                <option value="Charon">Voice: Informative</option>
+            </select>
         </div>
     </div>
 
@@ -241,6 +249,7 @@ const memoryStatus = document.getElementById("memoryStatus");
 const activeModelLabel = document.getElementById("activeModelLabel");
 const soundToggleBtn = document.getElementById("soundToggleBtn");
 const notificationToggleBtn = document.getElementById("notificationToggleBtn");
+const readAloudVoiceSelect = document.getElementById("readAloudVoiceSelect");
 const errorAudio = document.getElementById("errorAudio");
 
 const openTrainingBtn = document.getElementById("openTrainingBtn");
@@ -273,6 +282,10 @@ let wasTrainingActive = false;
 let lastTrainingError = "";
 let activeSpeechButton = null;
 let activeSpeechUtterance = null;
+let activeGeneratedAudio = null;
+let activeGeneratedAudioUrl = null;
+let speechRequestId = 0;
+const speechAudioCache = new Map();
 let statusPollingTimer = null;
 let lastStatusPollError = "";
 let audioContext = null;
@@ -288,6 +301,14 @@ Array.from(modelSelect.options).forEach(option => {
 
 Array.from(trainingModel.options).forEach(option => {
     option.dataset.baseLabel = option.textContent.trim();
+});
+
+const savedReadAloudVoice = localStorage.getItem("ai_hub_read_aloud_voice");
+if (savedReadAloudVoice && Array.from(readAloudVoiceSelect.options).some(option => option.value === savedReadAloudVoice)) {
+    readAloudVoiceSelect.value = savedReadAloudVoice;
+}
+readAloudVoiceSelect.addEventListener("change", () => {
+    localStorage.setItem("ai_hub_read_aloud_voice", readAloudVoiceSelect.value);
 });
 
 
@@ -599,47 +620,154 @@ notificationToggleBtn.addEventListener("click", toggleDeviceNotifications);
 // 7B. READ ALOUD FOR AI RESPONSES
 // ====================================================
 
+function finishReadAloud(requestId, button) {
+    if (requestId !== speechRequestId) return;
+    if (button) {
+        button.textContent = "🔊 Read aloud";
+        button.title = "Read this AI response aloud using Gemini's natural voice.";
+    }
+    activeSpeechButton = null;
+    activeSpeechUtterance = null;
+    activeGeneratedAudio = null;
+    if (activeGeneratedAudioUrl) {
+        URL.revokeObjectURL(activeGeneratedAudioUrl);
+        activeGeneratedAudioUrl = null;
+    }
+}
+
 function stopReadAloud() {
+    // Incrementing the ID also cancels any TTS request still waiting on the server.
+    speechRequestId++;
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (activeGeneratedAudio) {
+        activeGeneratedAudio.pause();
+        activeGeneratedAudio.currentTime = 0;
+        activeGeneratedAudio = null;
+    }
+    if (activeGeneratedAudioUrl) {
+        URL.revokeObjectURL(activeGeneratedAudioUrl);
+        activeGeneratedAudioUrl = null;
+    }
     if (activeSpeechButton) {
         activeSpeechButton.textContent = "🔊 Read aloud";
+        activeSpeechButton.title = "Read this AI response aloud using Gemini's natural voice.";
         activeSpeechButton = null;
     }
     activeSpeechUtterance = null;
 }
 
-function readAloud(text, button) {
-    if (!("speechSynthesis" in window) || !("SpeechSynthesisUtterance" in window)) {
-        showFailoverNotification("Read aloud is not supported by this browser.", "warning");
-        return;
-    }
+function prepareSpeechText(text) {
+    return String(text || "")
+        .replace(/```[\s\S]*?```/g, " A code block was omitted from the spoken audio. ")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/https?:\/\/\S+/g, " web link ")
+        .replace(/^\s{0,3}#{1,6}\s*/gm, "")
+        .replace(/^\s*(?:[-*]|\d+[.)])\s+/gm, "")
+        .replace(/\*\*(.*?)\*\*/g, "$1")
+        .replace(/__(.*?)__/g, "$1")
+        .replace(/(^|\s)\*([^*]+)\*(?=\s|$)/g, "$1$2")
+        .replace(/\s+/g, " ")
+        .trim();
+}
 
+function chooseNaturalBrowserVoice() {
+    if (!("speechSynthesis" in window)) return null;
+    const voices = window.speechSynthesis.getVoices() || [];
+    const englishVoices = voices.filter(voice => /^en(-|$)/i.test(voice.lang || ""));
+    const preferred = englishVoices.find(voice => /natural|neural|premium/i.test(voice.name)) ||
+        englishVoices.find(voice => /google|microsoft/i.test(voice.name)) ||
+        englishVoices[0];
+    return preferred || voices[0] || null;
+}
+
+async function readAloud(text, button) {
     if (activeSpeechButton === button) {
         stopReadAloud();
         return;
     }
 
     stopReadAloud();
-    const utterance = new SpeechSynthesisUtterance(String(text || ""));
+    const requestId = ++speechRequestId;
+    const speechText = prepareSpeechText(text);
+    const voice = readAloudVoiceSelect.value || "Achird";
+    const cacheKey = voice + "\n" + speechText;
     activeSpeechButton = button;
-    activeSpeechUtterance = utterance;
-    button.textContent = "⏹ Stop reading";
-
-    const restoreButton = () => {
-        if (activeSpeechButton === button) {
-            button.textContent = "🔊 Read aloud";
-            activeSpeechButton = null;
-            activeSpeechUtterance = null;
-        }
-    };
-    utterance.onend = restoreButton;
-    utterance.onerror = restoreButton;
+    button.textContent = "Preparing natural voice... (click to cancel)";
+    button.title = "Gemini is creating the spoken audio. Click to cancel.";
 
     try {
-        window.speechSynthesis.speak(utterance);
+        let speechData = speechAudioCache.get(cacheKey);
+        if (!speechData) {
+            const result = await apiRequest({
+                action: "textToSpeech",
+                text: speechText,
+                voice: voice
+            });
+            if (!result || !result.audioBase64) {
+                throw new Error(result && result.error ? result.error : "No audio was returned.");
+            }
+            speechData = {
+                audioBase64: result.audioBase64,
+                mimeType: result.mimeType || "audio/wav"
+            };
+            speechAudioCache.set(cacheKey, speechData);
+            // Keep only a small cache so repeated plays do not regenerate audio.
+            while (speechAudioCache.size > 6) {
+                speechAudioCache.delete(speechAudioCache.keys().next().value);
+            }
+        }
+
+        if (requestId !== speechRequestId) return;
+
+        const binary = atob(speechData.audioBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+        const blob = new Blob([bytes], { type: speechData.mimeType });
+        activeGeneratedAudioUrl = URL.createObjectURL(blob);
+        activeGeneratedAudio = new Audio(activeGeneratedAudioUrl);
+        button.textContent = "⏹ Stop reading";
+        button.title = "Stop the Gemini-generated voice.";
+
+        activeGeneratedAudio.onended = () => finishReadAloud(requestId, button);
+        activeGeneratedAudio.onerror = () => {
+            if (requestId === speechRequestId) {
+                finishReadAloud(requestId, button);
+                showFailoverNotification("Gemini created the voice, but your browser could not play the audio file.", "warning");
+            }
+        };
+
+        await activeGeneratedAudio.play();
+
     } catch (error) {
-        restoreButton();
-        showFailoverNotification("Read aloud failed: " + error.message, "error");
+        if (requestId !== speechRequestId) return;
+        console.warn("Gemini read-aloud failed; trying the device voice:", error);
+
+        // Fallback: keep read-aloud usable if the Gemini TTS model is unavailable.
+        if ("speechSynthesis" in window && "SpeechSynthesisUtterance" in window) {
+            const utterance = new SpeechSynthesisUtterance(speechText);
+            const browserVoice = chooseNaturalBrowserVoice();
+            if (browserVoice) utterance.voice = browserVoice;
+            utterance.lang = browserVoice && browserVoice.lang ? browserVoice.lang : "en-CA";
+            utterance.rate = 0.96;
+            utterance.pitch = 1.0;
+            activeSpeechUtterance = utterance;
+            button.textContent = "⏹ Stop reading (device voice)";
+            button.title = "Gemini voice was unavailable, so the browser's voice is being used.";
+            utterance.onend = () => finishReadAloud(requestId, button);
+            utterance.onerror = () => finishReadAloud(requestId, button);
+            try {
+                window.speechSynthesis.speak(utterance);
+                showFailoverNotification("Gemini's natural voice was unavailable, so AI Hub switched to your device's voice. Details: " + error.message, "warning");
+            } catch (fallbackError) {
+                finishReadAloud(requestId, button);
+                showFailoverNotification("Read aloud failed: " + fallbackError.message, "warning");
+            }
+        } else {
+            finishReadAloud(requestId, button);
+            showFailoverNotification("Gemini read-aloud failed: " + error.message, "warning");
+        }
     }
 }
 
@@ -726,12 +854,8 @@ function appendMessage(role, content) {
         speakButton.type = "button";
         speakButton.className = "text-xs bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg px-3 py-1.5";
         speakButton.textContent = "🔊 Read aloud";
-        speakButton.title = "Read this AI response aloud. Click again to stop.";
+        speakButton.title = "Read this AI response aloud using Gemini's natural voice. Click again to stop.";
         speakButton.addEventListener("click", () => readAloud(content, speakButton));
-        if (!("speechSynthesis" in window)) {
-            speakButton.disabled = true;
-            speakButton.title = "Read aloud is not supported by this browser.";
-        }
         toolbar.appendChild(speakButton);
         bubble.appendChild(toolbar);
     }
