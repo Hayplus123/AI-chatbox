@@ -46,13 +46,42 @@
             font-size: 0.7rem;
         }
         .ai-code-copy:hover { background: #374151; }
+        .ai-code-nav-group {
+            display: flex;
+            align-items: center;
+            gap: .35rem;
+            margin-left: auto;
+        }
+        .ai-code-nav {
+            border: 1px solid #4b5563;
+            border-radius: .4rem;
+            padding: .28rem .48rem;
+            color: #cbd5e1;
+            background: #1f2937;
+            font-size: .68rem;
+            white-space: nowrap;
+        }
+        .ai-code-nav:hover { background: #374151; color: #fff; }
         .ai-code-pre {
             max-width: 100%;
+            max-height: min(65vh, 560px);
             margin: 0;
             padding: 1rem;
-            overflow-x: auto;
+            overflow: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            scrollbar-color: #64748b #111827;
+            scroll-behavior: smooth;
             tab-size: 4;
         }
+        .ai-code-pre::-webkit-scrollbar { width: 10px; height: 10px; }
+        .ai-code-pre::-webkit-scrollbar-track { background: #111827; }
+        .ai-code-pre::-webkit-scrollbar-thumb {
+            background: #475569;
+            border: 2px solid #111827;
+            border-radius: 999px;
+        }
+        .ai-code-pre::-webkit-scrollbar-thumb:hover { background: #64748b; }
         .ai-code-pre code {
             display: block;
             min-width: max-content;
@@ -1098,6 +1127,27 @@ function renderMessageContent(container, content) {
         languageLabel.className = "ai-code-language";
         languageLabel.textContent = language.label;
 
+        const navGroup = document.createElement("div");
+        navGroup.className = "ai-code-nav-group";
+
+        const topButton = document.createElement("button");
+        topButton.type = "button";
+        topButton.className = "ai-code-nav";
+        topButton.textContent = "↑ Top";
+        topButton.title = "Scroll this code panel to the beginning";
+        topButton.addEventListener("click", () => {
+            pre.scrollTo({ top: 0, behavior: "smooth" });
+        });
+
+        const bottomButton = document.createElement("button");
+        bottomButton.type = "button";
+        bottomButton.className = "ai-code-nav";
+        bottomButton.textContent = "↓ Bottom";
+        bottomButton.title = "Scroll this code panel to the end";
+        bottomButton.addEventListener("click", () => {
+            pre.scrollTo({ top: pre.scrollHeight, behavior: "smooth" });
+        });
+
         const copyButton = document.createElement("button");
         copyButton.type = "button";
         copyButton.className = "ai-code-copy";
@@ -1105,8 +1155,12 @@ function renderMessageContent(container, content) {
         copyButton.title = "Copy this code block";
         copyButton.addEventListener("click", () => copyCodeBlock(block.content, copyButton));
 
+        navGroup.appendChild(topButton);
+        navGroup.appendChild(bottomButton);
+        navGroup.appendChild(copyButton);
+
         toolbar.appendChild(languageLabel);
-        toolbar.appendChild(copyButton);
+        toolbar.appendChild(navGroup);
 
         const pre = document.createElement("pre");
         pre.className = "ai-code-pre";
