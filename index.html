@@ -6,12 +6,66 @@
     <meta name="theme-color" content="#030712">
     <title>AI Hub & Dataset Collector</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
     <style>
         * { box-sizing: border-box; }
         body { margin: 0; min-height: 100dvh; }
         #chatContainer { scroll-behavior: smooth; }
         #userInput { max-height: 180px; }
         .message-bubble { overflow-wrap: anywhere; }
+        .ai-code-block {
+            margin: 1rem 0;
+            max-width: 100%;
+            overflow: hidden;
+            border: 1px solid #374151;
+            border-radius: 0.8rem;
+            background: #0b1220;
+        }
+        .ai-code-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            padding: 0.55rem 0.8rem;
+            background: #111827;
+            border-bottom: 1px solid #374151;
+        }
+        .ai-code-language {
+            color: #cbd5e1;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+        .ai-code-copy {
+            border: 1px solid #4b5563;
+            border-radius: 0.45rem;
+            padding: 0.3rem 0.6rem;
+            color: #e5e7eb;
+            background: #1f2937;
+            font-size: 0.7rem;
+        }
+        .ai-code-copy:hover { background: #374151; }
+        .ai-code-pre {
+            max-width: 100%;
+            margin: 0;
+            padding: 1rem;
+            overflow-x: auto;
+            tab-size: 4;
+        }
+        .ai-code-pre code {
+            display: block;
+            min-width: max-content;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.82rem;
+            line-height: 1.6;
+            white-space: pre;
+        }
+        .ai-code-pre code.hljs {
+            padding: 0;
+            background: transparent;
+        }
+        .ai-code-block .hljs { background: transparent; }
         button:disabled { cursor: not-allowed; opacity: .55; }
         select option:disabled { color: #777; }
         #aiFailoverToast { animation: toastIn .22s ease-out; }
@@ -771,7 +825,6 @@ async function readAloud(text, button) {
     }
 }
 
-
 // ====================================================
 // 8. MODEL AVAILABILITY + TRAINING LOCK
 // ====================================================
@@ -835,6 +888,194 @@ function applyTrainingRestrictions() {
 // 9. CHAT DISPLAY
 // ====================================================
 
+function getCodeLanguageInfo(rawLanguage) {
+    const raw = String(rawLanguage || "").trim().toLowerCase();
+    const aliases = {
+        js: ["JavaScript", "javascript"], javascript: ["JavaScript", "javascript"],
+        jsx: ["JSX", "jsx"], ts: ["TypeScript", "typescript"], typescript: ["TypeScript", "typescript"],
+        tsx: ["TSX", "tsx"], py: ["Python", "python"], python: ["Python", "python"],
+        html: ["HTML", "xml"], css: ["CSS", "css"], json: ["JSON", "json"],
+        bash: ["Bash", "bash"], sh: ["Shell", "bash"], shell: ["Shell", "bash"],
+        powershell: ["PowerShell", "powershell"], ps1: ["PowerShell", "powershell"],
+        sql: ["SQL", "sql"], java: ["Java", "java"], c: ["C", "c"],
+        cpp: ["C++", "cpp"], "c++": ["C++", "cpp"], cs: ["C#", "csharp"],
+        csharp: ["C#", "csharp"], php: ["PHP", "php"], ruby: ["Ruby", "ruby"],
+        rb: ["Ruby", "ruby"], go: ["Go", "go"], rust: ["Rust", "rust"],
+        rs: ["Rust", "rust"], yaml: ["YAML", "yaml"], yml: ["YAML", "yaml"],
+        xml: ["XML", "xml"], md: ["Markdown", "markdown"], markdown: ["Markdown", "markdown"],
+        text: ["Plain text", "plaintext"], plaintext: ["Plain text", "plaintext"],
+        dockerfile: ["Dockerfile", "dockerfile"], kotlin: ["Kotlin", "kotlin"],
+        swift: ["Swift", "swift"], r: ["R", "r"], lua: ["Lua", "lua"],
+        dart: ["Dart", "dart"], diff: ["Diff", "diff"]
+    };
+
+    if (!raw) return { label: "Code", highlightLanguage: "" };
+    if (aliases[raw]) {
+        return { label: aliases[raw][0], highlightLanguage: aliases[raw][1] };
+    }
+
+    // Only allow simple language tokens in the CSS class; the visible label is text-only.
+    const safe = /^[a-z0-9_+#.-]+$/i.test(raw) ? raw : "";
+    const label = safe ? safe.replace(/[-_.]+/g, " ").replace(/\b\w/g, ch => ch.toUpperCase()) : "Code";
+    return { label: label, highlightLanguage: safe };
+}
+
+function splitMessageIntoBlocks(content) {
+    const lines = String(content == null ? "" : content).replace(/\r\n?/g, "\n").split("\n");
+    const blocks = [];
+    let textLines = [];
+    let codeLines = [];
+    let fence = null;
+
+    function flushText() {
+        if (textLines.length) {
+            blocks.push({ type: "text", content: textLines.join("\n") });
+            textLines = [];
+        }
+    }
+
+    for (const line of lines) {
+        if (!fence) {
+            const opening = line.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);
+            if (opening) {
+                flushText();
+                const info = String(opening[2] || "").trim();
+                fence = {
+                    character: opening[1][0],
+                    length: opening[1].length,
+                    language: info ? info.split(/\s+/)[0] : ""
+                };
+                codeLines = [];
+            } else {
+                textLines.push(line);
+            }
+            continue;
+        }
+
+        const closing = line.match(/^\s{0,3}(`+|~+)\s*$/);
+        if (
+            closing &&
+            closing[1][0] === fence.character &&
+            closing[1].length >= fence.length
+        ) {
+            blocks.push({
+                type: "code",
+                language: fence.language,
+                content: codeLines.join("\n")
+            });
+            fence = null;
+            codeLines = [];
+        } else {
+            codeLines.push(line);
+        }
+    }
+
+    // Gracefully display an unfinished code fence as a code block.
+    if (fence) {
+        blocks.push({
+            type: "code",
+            language: fence.language,
+            content: codeLines.join("\n")
+        });
+    }
+    flushText();
+
+    return blocks;
+}
+
+async function copyCodeBlock(code, button) {
+    const originalText = button.textContent;
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(code);
+        } else {
+            throw new Error("Clipboard API unavailable");
+        }
+        button.textContent = "Copied!";
+    } catch (error) {
+        // Fallback for browsers where the Clipboard API is unavailable.
+        const temporary = document.createElement("textarea");
+        temporary.value = code;
+        temporary.setAttribute("readonly", "");
+        temporary.style.position = "fixed";
+        temporary.style.opacity = "0";
+        document.body.appendChild(temporary);
+        temporary.select();
+        let copied = false;
+        try { copied = document.execCommand("copy"); } catch (copyError) { copied = false; }
+        temporary.remove();
+        button.textContent = copied ? "Copied!" : "Copy failed";
+    }
+
+    setTimeout(() => {
+        if (button.isConnected) button.textContent = originalText;
+    }, 1400);
+}
+
+function renderMessageContent(container, content) {
+    const blocks = splitMessageIntoBlocks(content);
+
+    blocks.forEach(block => {
+        if (block.type === "text") {
+            if (!block.content) return;
+            const textPart = document.createElement("div");
+            textPart.className = "whitespace-pre-wrap";
+            textPart.textContent = block.content;
+            container.appendChild(textPart);
+            return;
+        }
+
+        const language = getCodeLanguageInfo(block.language);
+        const panel = document.createElement("section");
+        panel.className = "ai-code-block";
+
+        const toolbar = document.createElement("div");
+        toolbar.className = "ai-code-toolbar";
+
+        const languageLabel = document.createElement("span");
+        languageLabel.className = "ai-code-language";
+        languageLabel.textContent = language.label;
+
+        const copyButton = document.createElement("button");
+        copyButton.type = "button";
+        copyButton.className = "ai-code-copy";
+        copyButton.textContent = "Copy code";
+        copyButton.title = "Copy this code block";
+        copyButton.addEventListener("click", () => copyCodeBlock(block.content, copyButton));
+
+        toolbar.appendChild(languageLabel);
+        toolbar.appendChild(copyButton);
+
+        const pre = document.createElement("pre");
+        pre.className = "ai-code-pre";
+        const codeElement = document.createElement("code");
+        if (language.highlightLanguage) {
+            codeElement.className = "language-" + language.highlightLanguage;
+        }
+        codeElement.textContent = block.content;
+        pre.appendChild(codeElement);
+
+        panel.appendChild(toolbar);
+        panel.appendChild(pre);
+        container.appendChild(panel);
+
+        // Syntax highlighting is an enhancement; the code panel works without the CDN.
+        if (window.hljs && typeof window.hljs.highlightElement === "function") {
+            try {
+                if (
+                    !language.highlightLanguage ||
+                    !window.hljs.getLanguage ||
+                    window.hljs.getLanguage(language.highlightLanguage)
+                ) {
+                    window.hljs.highlightElement(codeElement);
+                }
+            } catch (error) {
+                console.warn("Syntax highlighting was unavailable for this code block:", error);
+            }
+        }
+    });
+}
+
 function appendMessage(role, content) {
     const isUser = role === "user";
     const wrapper = document.createElement("div");
@@ -861,8 +1102,8 @@ function appendMessage(role, content) {
     }
 
     const messageText = document.createElement("div");
-    messageText.className = "whitespace-pre-wrap";
-    messageText.textContent = content;
+    messageText.className = "space-y-3";
+    renderMessageContent(messageText, content);
     bubble.appendChild(messageText);
 
     wrapper.appendChild(avatar);
