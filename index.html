@@ -66,6 +66,24 @@
             background: transparent;
         }
         .ai-code-block .hljs { background: transparent; }
+        .ai-progress-status {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            color: #bfdbfe;
+            min-height: 1.5rem;
+        }
+        .ai-progress-spinner {
+            width: .9rem;
+            height: .9rem;
+            border: 2px solid #475569;
+            border-top-color: #60a5fa;
+            border-radius: 9999px;
+            flex: 0 0 auto;
+            animation: aiSpin .8s linear infinite;
+        }
+        @keyframes aiSpin { to { transform: rotate(360deg); } }
+        .ai-progress-detail { color: #94a3b8; font-size: .75rem; margin-top: .25rem; }
         button:disabled { cursor: not-allowed; opacity: .55; }
         select option:disabled { color: #777; }
         #aiFailoverToast { animation: toastIn .22s ease-out; }
@@ -107,9 +125,14 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-3 mt-4">
-        <label id="searchControl" class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700 opacity-40" title="Available only with your personal AI models.">
+        <label id="searchControl" class="flex items-center gap-2 text-sm cursor-pointer bg-gray-800 px-3 py-2 rounded-lg border border-gray-700 opacity-40" title="Manual Wikipedia search is available only with your personal AI models.">
             <input type="checkbox" id="searchToggle" class="accent-blue-500" disabled>
-            <span>Web Search</span>
+            <span>Manual Search</span>
+        </label>
+
+        <label id="smartModeControl" class="flex items-center gap-2 text-sm cursor-pointer bg-blue-950/50 px-3 py-2 rounded-lg border border-blue-800" title="Automatically checks saved conversations for personal references and searches Wikipedia when current information is useful.">
+            <input type="checkbox" id="smartModeToggle" class="accent-blue-500">
+            <span>🧠 Smart Search</span>
         </label>
 
         <select id="modelSelect" class="model-selector bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm min-w-64 focus:outline-none focus:border-blue-500">
@@ -138,10 +161,21 @@
                 <option value="cloudflare-backup">Cloudflare AI (My Backup Model)</option>
             </optgroup>
         </select>
+
+        <div id="personalModeControl" class="hidden flex flex-wrap items-center gap-2 bg-gray-800 border border-purple-800/70 rounded-lg px-3 py-2">
+            <label for="personalModeSelect" class="text-xs text-purple-200 whitespace-nowrap">Personal AI mode</label>
+            <select id="personalModeSelect" class="bg-gray-950 border border-gray-700 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-purple-500" aria-label="Personal AI mode">
+                <option value="general">General</option>
+                <option value="coding">Coding</option>
+                <option value="research">Research</option>
+                <option value="creative">Creative</option>
+                <option value="math">Math &amp; Logic</option>
+            </select>
+        </div>
     </div>
 
     <div class="mt-3 text-xs text-gray-500">
-        Failed models are rechecked every 30 minutes and automatically restored when their provider endpoint responds. Any remaining failures reset at 12:00 AM Toronto time. Cloud memory and research notes are shared across models.
+        Failed models are rechecked every 30 minutes and automatically restored when their provider endpoint responds. Any remaining failures reset at 12:00 AM Toronto time. Cloud memory and research notes are shared across models. Smart Search currently uses your saved conversation archive and Wikipedia for public search results.
     </div>
     <div class="mt-2 text-xs text-blue-300">
         Active model: <span id="activeModelLabel">Waiting for first message</span>
@@ -297,6 +331,10 @@ const sendBtn = document.getElementById("sendBtn");
 const modelSelect = document.getElementById("modelSelect");
 const searchToggle = document.getElementById("searchToggle");
 const searchControl = document.getElementById("searchControl");
+const smartModeToggle = document.getElementById("smartModeToggle");
+const smartModeControl = document.getElementById("smartModeControl");
+const personalModeControl = document.getElementById("personalModeControl");
+const personalModeSelect = document.getElementById("personalModeSelect");
 const usageCounter = document.getElementById("usageCounter");
 const status = document.getElementById("status");
 const memoryStatus = document.getElementById("memoryStatus");
@@ -346,7 +384,22 @@ let audioContext = null;
 let audioUnlocked = false;
 let soundsEnabled = localStorage.getItem("ai_hub_sounds_enabled") !== "false";
 let notificationsEnabled = localStorage.getItem("ai_hub_notifications_enabled") === "true";
+let smartModeEnabled = localStorage.getItem("ai_hub_smart_search_enabled") === "true";
 const notificationsSupported = window.isSecureContext && ("Notification" in window);
+
+smartModeToggle.checked = smartModeEnabled;
+smartModeToggle.addEventListener("change", () => {
+    smartModeEnabled = smartModeToggle.checked;
+    localStorage.setItem("ai_hub_smart_search_enabled", String(smartModeEnabled));
+});
+
+const savedPersonalMode = localStorage.getItem("ai_hub_personal_mode");
+if (savedPersonalMode && Array.from(personalModeSelect.options).some(option => option.value === savedPersonalMode)) {
+    personalModeSelect.value = savedPersonalMode;
+}
+personalModeSelect.addEventListener("change", () => {
+    localStorage.setItem("ai_hub_personal_mode", personalModeSelect.value);
+});
 
 // Keep original dropdown labels so status labels can be rebuilt cleanly.
 Array.from(modelSelect.options).forEach(option => {
@@ -415,7 +468,16 @@ function updateSearchAvailability() {
         : "Web Search is available only with your personal AI models when research training is not running.";
 }
 
-modelSelect.addEventListener("change", updateSearchAvailability);
+function updatePersonalModeAvailability() {
+    const available = isMyAISelected();
+    personalModeControl.classList.toggle("hidden", !available);
+    personalModeSelect.disabled = !available;
+}
+
+modelSelect.addEventListener("change", () => {
+    updateSearchAvailability();
+    updatePersonalModeAvailability();
+});
 
 
 // ====================================================
@@ -1076,7 +1138,7 @@ function renderMessageContent(container, content) {
     });
 }
 
-function appendMessage(role, content) {
+function appendMessage(role, content, metadata = {}) {
     const isUser = role === "user";
     const wrapper = document.createElement("div");
     wrapper.className = `flex items-start gap-3 ${isUser ? "flex-row-reverse" : ""}`;
@@ -1090,7 +1152,29 @@ function appendMessage(role, content) {
 
     if (!isUser) {
         const toolbar = document.createElement("div");
-        toolbar.className = "flex justify-end mb-3";
+        toolbar.className = "flex flex-wrap justify-between items-center gap-2 mb-3";
+        const metaGroup = document.createElement("div");
+        metaGroup.className = "flex flex-wrap items-center gap-2";
+        if (metadata.smartMode) {
+            const smartBadge = document.createElement("span");
+            smartBadge.className = "text-xs text-blue-200 bg-blue-950/60 border border-blue-800 rounded-md px-2 py-1";
+            smartBadge.textContent = "🧠 Smart Mode";
+            metaGroup.appendChild(smartBadge);
+        }
+        if (metadata.searchSource) {
+            const searchBadge = document.createElement("span");
+            searchBadge.className = "text-xs text-sky-200 bg-sky-950/60 border border-sky-800 rounded-md px-2 py-1";
+            searchBadge.textContent = "🌐 Searched: " + metadata.searchSource;
+            metaGroup.appendChild(searchBadge);
+        }
+        if (metadata.memoryEnhanced) {
+            const memoryBadge = document.createElement("span");
+            memoryBadge.className = "text-xs text-purple-200 bg-purple-950/60 border border-purple-800 rounded-md px-2 py-1";
+            memoryBadge.textContent = "🧠 Past chats searched";
+            metaGroup.appendChild(memoryBadge);
+        }
+        if (metaGroup.childNodes.length) toolbar.appendChild(metaGroup);
+
         const speakButton = document.createElement("button");
         speakButton.type = "button";
         speakButton.className = "text-xs bg-gray-700 hover:bg-gray-600 border border-gray-600 rounded-lg px-3 py-1.5";
@@ -1102,7 +1186,7 @@ function appendMessage(role, content) {
     }
 
     const messageText = document.createElement("div");
-    messageText.className = "space-y-3";
+    messageText.className = "space-y-3 message-content";
     renderMessageContent(messageText, content);
     bubble.appendChild(messageText);
 
@@ -1112,6 +1196,45 @@ function appendMessage(role, content) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
     return wrapper;
 }
+
+function isLikelyCodingRequest(text) {
+    const value = String(text || "").toLowerCase();
+    const asksToBuildOrChange = /\b(write|create|build|make|generate|program|script|debug|fix|edit|change|implement|refactor|add|update)\b/.test(value) ||
+        /\bcode\s+(this|a|an|the|me|up)\b/.test(value);
+    const mentionsCode = /\b(code|coding|program|script|function|class|html|css|javascript|typescript|js|python|py|java|c\+\+|csharp|sql|json|api|website|webpage|game|bot)\b/.test(value);
+    return asksToBuildOrChange && mentionsCode;
+}
+
+
+function setAssistantProgress(messageWrapper, title, detail = "") {
+    if (!messageWrapper) return;
+    const content = messageWrapper.querySelector(".message-content");
+    if (!content) return;
+
+    content.replaceChildren();
+    const row = document.createElement("div");
+    row.className = "ai-progress-status";
+
+    const spinner = document.createElement("span");
+    spinner.className = "ai-progress-spinner";
+
+    const label = document.createElement("span");
+    label.textContent = title;
+
+    row.appendChild(spinner);
+    row.appendChild(label);
+    content.appendChild(row);
+
+    if (detail) {
+        const detailLine = document.createElement("div");
+        detailLine.className = "ai-progress-detail";
+        detailLine.textContent = detail;
+        content.appendChild(detailLine);
+    }
+
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
 
 function extractReply(data) {
     if (data.error) {
@@ -1216,17 +1339,98 @@ async function handleSend() {
 
     const selectedModel = modelSelect.value;
     const trainingActive = ["running", "stopping"].includes(trainingSnapshot.status);
-    const useSearch = isPersonalAI(selectedModel) && !trainingActive && searchToggle.checked;
-    const loadingMessage = appendMessage("assistant", "Connecting to your AI queue...");
+    const manualSearchRequested = isPersonalAI(selectedModel) && !trainingActive && searchToggle.checked;
+    const smartMode = smartModeToggle.checked;
+    const personalMode = isPersonalAI(selectedModel) ? personalModeSelect.value : "general";
+    const loadingMessage = appendMessage("assistant", "Preparing your request...");
+
+    let smartMemoryContext = "";
+    let smartMemorySearched = false;
+    let smartPlan = null;
+    let smartWebContext = "";
+    let smartSearchSource = "";
+    let smartSearchWarning = "";
 
     try {
         setStatus("Checking AI queue", "text-yellow-400");
 
+        // Stage 1: Smart Search checks whether this request refers to earlier
+        // personal conversations, and whether current public information is needed.
+        if (smartMode) {
+            setAssistantProgress(
+                loadingMessage,
+                "🧠 Smart Search: checking saved conversations...",
+                "Looking for relevant context from earlier chats."
+            );
+            smartPlan = await apiRequest({
+                action: "smartPrepare",
+                messages: messages
+            });
+            if (!smartPlan || smartPlan.ok === false) {
+                smartSearchWarning = smartPlan && smartPlan.error
+                    ? smartPlan.error
+                    : "Smart Search could not prepare this request. The AI will continue with regular memory.";
+                smartPlan = null;
+            } else {
+                smartMemoryContext = smartPlan.memoryContext || "";
+                smartMemorySearched = smartPlan.deepMemorySearched === true;
+
+                if (smartPlan.memoryWarning) {
+                    smartSearchWarning = smartPlan.memoryWarning;
+                    console.warn("Smart conversation search warning:", smartPlan.memoryWarning);
+                }
+            }
+        }
+
+        // Stage 2: use the existing public search source only when Smart Search
+        // decides it is useful, or when the user explicitly asks for manual search.
+        const autoSearchRequested = Boolean(smartMode && smartPlan && smartPlan.webSearchNeeded);
+        const useWebSearchNow = autoSearchRequested || manualSearchRequested;
+        if (useWebSearchNow) {
+            const searchQuery = smartPlan && smartPlan.searchQuery ? smartPlan.searchQuery : text;
+            setAssistantProgress(
+                loadingMessage,
+                "🌐 Searching Wikipedia...",
+                "Finding relevant public information and source links."
+            );
+            const searchData = await apiRequest({
+                action: "smartWebSearch",
+                query: searchQuery
+            });
+            if (!searchData || searchData.ok === false) {
+                smartSearchWarning = (smartSearchWarning ? smartSearchWarning + "\n" : "") +
+                    (searchData && searchData.error ? searchData.error : "The search request failed.");
+            } else {
+                smartWebContext = searchData.webContext || "";
+                smartSearchSource = searchData.noResults
+                    ? "Wikipedia (no matches)"
+                    : (searchData.searchSource || "Wikipedia");
+                if (searchData.noResults) {
+                    smartWebContext = "[Wikipedia Search Results] No matching articles were found for this query.";
+                }
+            }
+        }
+
+        // Stage 3: the request is now going to the model/failover queue.
+        const writingLabel = (personalMode === "coding" || isLikelyCodingRequest(text))
+            ? "Writing code..."
+            : (personalMode === "research" ? "Preparing a research answer..." : "Thinking through your request...");
+        setAssistantProgress(
+            loadingMessage,
+            writingLabel,
+            smartMode ? "Smart Search preparation is complete." : "Sending your request to the selected model."
+        );
+
         const data = await apiRequest({
             model: selectedModel,
             messages: messages,
-            useSearch: useSearch,
+            useSearch: false,
             useMemory: true,
+            smartMode: smartMode,
+            smartMemorySearched: smartMemorySearched,
+            smartMemoryContext: smartMemoryContext,
+            smartWebContext: smartWebContext,
+            personalMode: personalMode,
             logToSheet: true
         });
 
@@ -1252,7 +1456,11 @@ async function handleSend() {
 
         const reply = extractReply(data);
         loadingMessage.remove();
-        appendMessage("assistant", reply);
+        appendMessage("assistant", reply, {
+            smartMode: smartMode,
+            searchSource: smartSearchSource,
+            memoryEnhanced: smartMemorySearched && Boolean(smartMemoryContext)
+        });
         messages.push({ role: "assistant", content: reply });
         incrementUsage();
         playPingSound();
@@ -1303,6 +1511,9 @@ async function handleSend() {
         if (data.searchWarning) {
             appendMessage("assistant", "⚠️ " + data.searchWarning);
             reportAppError("Search warning", data.searchWarning, false);
+        }
+        if (smartSearchWarning) {
+            appendMessage("assistant", "⚠️ Smart Search notice: " + smartSearchWarning);
         }
 
     } catch (error) {
@@ -1618,6 +1829,7 @@ setInterval(() => {
 updateUsageDisplay();
 updateAlertButtons();
 updateSearchAvailability();
+updatePersonalModeAvailability();
 setStatus("Connecting to AI Hub", "text-yellow-400");
 refreshServerStatus().finally(scheduleStatusPolling);
 
