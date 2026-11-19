@@ -113,6 +113,11 @@
         }
         @keyframes aiSpin { to { transform: rotate(360deg); } }
         .ai-progress-detail { color: #94a3b8; font-size: .75rem; margin-top: .25rem; }
+        .attachment-chip { display:flex; align-items:center; gap:.65rem; min-width:0; border:1px solid #374151; background:#111827; border-radius:.75rem; padding:.55rem .7rem; }
+        .attachment-thumb { width:2.3rem; height:2.3rem; object-fit:cover; border-radius:.4rem; flex:0 0 auto; }
+        .attachment-remove { border:1px solid #4b5563; border-radius:.4rem; padding:.2rem .45rem; color:#cbd5e1; background:#1f2937; font-size:.72rem; }
+        .attachment-remove:hover { background:#374151; color:#fff; }
+        .attachment-status { color:#94a3b8; font-size:.72rem; }
         button:disabled { cursor: not-allowed; opacity: .55; }
         select option:disabled { color: #777; }
         #aiFailoverToast { animation: toastIn .22s ease-out; }
@@ -354,11 +359,20 @@ Use the Train panel to research a topic and save source-linked notes for future 
 <!-- INPUT                                              -->
 <!-- ================================================== -->
 <footer class="bg-gray-900 border-t border-gray-800 p-4">
+    <input id="attachmentInput" type="file" multiple hidden accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json,.xml,.html,.htm,.css,.js,.mjs,.ts,.py,.java,.c,.cpp,.h,.hpp,.sql,.log,.jpg,.jpeg,.png,.webp,.gif,.mp3,.wav,.aac,.ogg,.flac,.m4a,.aiff,.aif,.opus,.webm">
+    <div class="flex flex-wrap items-center gap-2 mb-3">
+        <button id="attachBtn" type="button" class="text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 px-3 py-2 rounded-lg">📎 Attach files</button>
+        <div class="flex flex-col gap-1">
+            <span class="attachment-status">PDF, DOCX, text/code, images and audio · 7 MB per file · up to 4 files</span>
+            <span class="attachment-status">Privacy note: PDFs, images and audio are analyzed by Gemini before their extracted content is sent to your selected chat model.</span>
+        </div>
+    </div>
+    <div id="attachmentList" class="hidden flex flex-wrap gap-2 mb-3"></div>
     <div class="flex gap-3 w-full">
-        <textarea id="userInput" rows="1" placeholder="Type your message here..." class="flex-1 min-w-0 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"></textarea>
+        <textarea id="userInput" rows="1" placeholder="Type your message or attach a file..." class="flex-1 min-w-0 bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500 resize-none"></textarea>
         <button id="sendBtn" type="button" class="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 py-3 rounded-xl text-sm transition-colors shrink-0">Send</button>
     </div>
-    <div class="mt-2 text-xs text-gray-500">Enter = Send · Shift + Enter = New Line</div>
+    <div class="mt-2 text-xs text-gray-500">Enter = Send · Shift + Enter = New Line · Uploaded files are stored in your private Google Drive attachment folder.</div>
 </footer>
 
 
@@ -383,6 +397,9 @@ const STATUS_REFRESH_INTERVAL = 30 * 60 * 1000;
 const chatContainer = document.getElementById("chatContainer");
 const userInput = document.getElementById("userInput");
 const sendBtn = document.getElementById("sendBtn");
+const attachmentInput = document.getElementById("attachmentInput");
+const attachBtn = document.getElementById("attachBtn");
+const attachmentList = document.getElementById("attachmentList");
 const modelSelect = document.getElementById("modelSelect");
 const searchToggle = document.getElementById("searchToggle");
 const searchControl = document.getElementById("searchControl");
@@ -427,6 +444,11 @@ const trainingMessage = document.getElementById("trainingMessage");
 
 let messages = [];
 let isSending = false;
+let attachmentQueue = [];
+let attachmentUploading = false;
+const MAX_CLIENT_ATTACHMENT_BYTES = 7 * 1024 * 1024;
+const MAX_CLIENT_ATTACHMENT_TOTAL = 14 * 1024 * 1024;
+const MAX_CLIENT_ATTACHMENTS = 4;
 let notificationTimer = null;
 let currentFailureState = {};
 let trainingSnapshot = { status: "inactive", processedCount: 0, latestLearned: [] };
@@ -1020,6 +1042,181 @@ function applyTrainingRestrictions() {
 
 
 // ====================================================
+// 8B. FILE ATTACHMENTS — UPLOAD, PREVIEW AND QUEUE
+// ====================================================
+
+function formatFileSize(bytes) {
+    const size = Number(bytes) || 0;
+    if (size < 1024) return size + " B";
+    if (size < 1024 * 1024) return (size / 1024).toFixed(1) + " KB";
+    return (size / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+function attachmentKindFromFile(file) {
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (["jpg", "jpeg", "png", "webp", "gif"].includes(ext)) return "image";
+    if (["mp3", "wav", "aac", "ogg", "flac", "m4a", "aiff", "aif", "opus", "webm"].includes(ext)) return "audio";
+    if (ext === "pdf") return "document";
+    if (ext === "docx") return "word document";
+    return "text/document";
+}
+
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = String(reader.result || "");
+            const comma = result.indexOf(",");
+            if (comma < 0) return reject(new Error("Could not encode " + file.name + "."));
+            resolve(result.slice(comma + 1));
+        };
+        reader.onerror = () => reject(new Error("Could not read " + file.name + "."));
+        reader.readAsDataURL(file);
+    });
+}
+
+function renderAttachmentQueue() {
+    attachmentList.replaceChildren();
+    attachmentList.classList.toggle("hidden", attachmentQueue.length === 0);
+
+    attachmentQueue.forEach(item => {
+        const chip = document.createElement("div");
+        chip.className = "attachment-chip";
+
+        if (item.kind === "image" && item.previewUrl) {
+            const image = document.createElement("img");
+            image.className = "attachment-thumb";
+            image.src = item.previewUrl;
+            image.alt = "Preview of " + item.name;
+            chip.appendChild(image);
+        } else {
+            const icon = document.createElement("span");
+            icon.className = "text-xl";
+            icon.textContent = item.kind === "audio" ? "🎵" : item.kind === "document" || item.kind === "word document" ? "📄" : "🗎";
+            chip.appendChild(icon);
+        }
+
+        const details = document.createElement("div");
+        details.className = "min-w-0";
+        const name = document.createElement("div");
+        name.className = "text-xs text-gray-200 truncate max-w-40";
+        name.textContent = item.name;
+        const state = document.createElement("div");
+        state.className = "attachment-status";
+        state.textContent = item.status === "uploading"
+            ? "Uploading..."
+            : item.status === "error"
+                ? (item.error || "Upload failed")
+                : "Ready · " + formatFileSize(item.sizeBytes);
+        details.appendChild(name);
+        details.appendChild(state);
+        chip.appendChild(details);
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "attachment-remove";
+        remove.textContent = "Remove";
+        remove.disabled = item.status === "uploading";
+        remove.addEventListener("click", () => removeQueuedAttachment(item.localId));
+        chip.appendChild(remove);
+        attachmentList.appendChild(chip);
+    });
+}
+
+async function removeQueuedAttachment(localId) {
+    const index = attachmentQueue.findIndex(item => item.localId === localId);
+    if (index < 0) return;
+    const [item] = attachmentQueue.splice(index, 1);
+    if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    renderAttachmentQueue();
+    if (item.id) {
+        try { await apiRequest({ action: "deleteAttachment", attachmentId: item.id }); }
+        catch (error) { console.warn("Could not delete the unused Drive attachment:", error); }
+    }
+}
+
+async function uploadSelectedFiles(fileList) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+
+    const currentTotal = attachmentQueue.reduce((sum, item) => sum + (item.sizeBytes || 0), 0);
+    let plannedTotal = currentTotal;
+
+    for (const file of files) {
+        if (attachmentQueue.length >= MAX_CLIENT_ATTACHMENTS) {
+            showFailoverNotification("You can attach up to four files to one message.", "warning");
+            break;
+        }
+        if (file.size <= 0) {
+            showFailoverNotification(file.name + " is empty.", "warning");
+            continue;
+        }
+        if (file.size > MAX_CLIENT_ATTACHMENT_BYTES) {
+            showFailoverNotification(file.name + " is larger than the 7 MB per-file limit.", "warning");
+            continue;
+        }
+        if (plannedTotal + file.size > MAX_CLIENT_ATTACHMENT_TOTAL) {
+            showFailoverNotification("Attachments are limited to 14 MB in total per message.", "warning");
+            continue;
+        }
+
+        const localId = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : String(Date.now()) + "-" + Math.random().toString(16).slice(2);
+        const kind = attachmentKindFromFile(file);
+        const item = {
+            localId: localId,
+            id: "",
+            name: file.name,
+            mimeType: file.type || "application/octet-stream",
+            kind: kind,
+            sizeBytes: file.size,
+            previewUrl: kind === "image" ? URL.createObjectURL(file) : "",
+            status: "uploading",
+            error: ""
+        };
+        attachmentQueue.push(item);
+        plannedTotal += file.size;
+        renderAttachmentQueue();
+        attachmentUploading = true;
+        attachBtn.disabled = true;
+
+        try {
+            const base64 = await fileToBase64(file);
+            const result = await apiRequest({
+                action: "uploadAttachment",
+                fileName: file.name,
+                mimeType: file.type || "application/octet-stream",
+                base64: base64
+            });
+            if (!result || result.ok === false || !result.attachment || !result.attachment.id) {
+                throw new Error(result && result.error ? result.error : "The server did not confirm the upload.");
+            }
+            item.id = result.attachment.id;
+            item.name = result.attachment.fileName || item.name;
+            item.mimeType = result.attachment.mimeType || item.mimeType;
+            item.kind = result.attachment.kind || item.kind;
+            item.sizeBytes = result.attachment.sizeBytes || item.sizeBytes;
+            item.status = "ready";
+        } catch (error) {
+            item.status = "error";
+            item.error = error.message || "Upload failed";
+            showFailoverNotification("Could not upload " + item.name + ": " + item.error, "error");
+        } finally {
+            attachmentUploading = false;
+            attachBtn.disabled = false;
+            renderAttachmentQueue();
+        }
+    }
+
+    attachmentInput.value = "";
+}
+
+attachBtn.addEventListener("click", () => attachmentInput.click());
+attachmentInput.addEventListener("change", event => uploadSelectedFiles(event.target.files));
+
+
+// ====================================================
 // 9. CHAT DISPLAY
 // ====================================================
 
@@ -1286,6 +1483,32 @@ function appendMessage(role, content, metadata = {}) {
     messageText.className = "space-y-3 message-content";
     renderMessageContent(messageText, content);
     bubble.appendChild(messageText);
+
+    if (isUser && Array.isArray(metadata.attachments) && metadata.attachments.length) {
+        const attachmentRow = document.createElement("div");
+        attachmentRow.className = "flex flex-wrap gap-2 mt-3";
+        metadata.attachments.forEach(file => {
+            const card = document.createElement("div");
+            card.className = "flex items-center gap-2 rounded-lg border border-blue-300/30 bg-blue-950/30 px-2 py-1.5 max-w-full";
+            if (file.kind === "image" && file.previewUrl) {
+                const preview = document.createElement("img");
+                preview.src = file.previewUrl;
+                preview.alt = file.name;
+                preview.className = "w-9 h-9 rounded object-cover";
+                card.appendChild(preview);
+            } else {
+                const glyph = document.createElement("span");
+                glyph.textContent = file.kind === "audio" ? "🎵" : "📄";
+                card.appendChild(glyph);
+            }
+            const label = document.createElement("span");
+            label.className = "text-xs truncate max-w-40";
+            label.textContent = file.name;
+            card.appendChild(label);
+            attachmentRow.appendChild(card);
+        });
+        bubble.appendChild(attachmentRow);
+    }
 
     wrapper.appendChild(avatar);
     wrapper.appendChild(bubble);
@@ -1574,7 +1797,16 @@ async function handleSend() {
     if (isSending) return;
 
     const text = userInput.value.trim();
-    if (!text) return;
+    const attachmentsToSend = attachmentQueue.filter(item => item.status === "ready" && item.id);
+    if (!text && !attachmentsToSend.length) return;
+    if (attachmentUploading || attachmentQueue.some(item => item.status === "uploading")) {
+        showFailoverNotification("Please wait for the file upload to finish before sending.", "warning");
+        return;
+    }
+    if (attachmentQueue.some(item => item.status === "error")) {
+        showFailoverNotification("Remove or retry the file that failed to upload before sending.", "warning");
+        return;
+    }
 
     if (getUsage().count >= DAILY_LIMIT) {
         alert("Daily usage limit of 50 reached!");
@@ -1596,8 +1828,15 @@ async function handleSend() {
     userInput.value = "";
     userInput.style.height = "auto";
 
-    appendMessage("user", text);
-    messages.push({ role: "user", content: text });
+    const visibleUserText = text || "Please analyze the attached file(s).";
+    const attachmentNames = attachmentsToSend.map(item => item.name);
+    const memoryUserText = visibleUserText + (attachmentNames.length
+        ? "\n\n[Attached files: " + attachmentNames.join(", ") + "]"
+        : "");
+    appendMessage("user", visibleUserText, { attachments: attachmentsToSend.map(item => ({
+        name: item.name, kind: item.kind, previewUrl: item.previewUrl
+    })) });
+    messages.push({ role: "user", content: memoryUserText });
     if (messages.length > 100) messages = messages.slice(-100);
 
     const selectedModel = modelSelect.value;
@@ -1606,7 +1845,13 @@ async function handleSend() {
     const smartMode = smartModeToggle.checked;
     const personalMode = isPersonalAI(selectedModel) ? personalModeSelect.value : "general";
     const loadingMessage = appendMessage("assistant", "Preparing your request...");
-    const deepResearchRequested = deepWorkEnabled || isLikelyDeepResearchRequest(text);
+    const deepResearchRequested = (deepWorkEnabled || isLikelyDeepResearchRequest(text)) && attachmentsToSend.length === 0;
+    if ((deepWorkEnabled || isLikelyDeepResearchRequest(text)) && attachmentsToSend.length) {
+        showFailoverNotification("File attachments are currently handled in standard chat. Deep Research will not start for this message.", "warning");
+        deepWorkEnabled = false;
+        deepWorkToggle.checked = false;
+        localStorage.setItem("ai_hub_deep_research_enabled", "false");
+    }
 
     if (deepResearchRequested) {
         // The checkbox applies to this one message only. It must not silently
@@ -1742,6 +1987,7 @@ async function handleSend() {
             smartMemoryContext: smartMemoryContext,
             smartWebContext: smartWebContext,
             personalMode: personalMode,
+            attachments: attachmentsToSend.map(item => item.id),
             logToSheet: true
         });
 
@@ -1767,6 +2013,9 @@ async function handleSend() {
 
         const reply = extractReply(data);
         loadingMessage.remove();
+        // Keep Drive copies for the conversation archive, but clear the compose queue.
+        attachmentQueue = [];
+        renderAttachmentQueue();
         appendMessage("assistant", reply, {
             smartMode: smartMode,
             searchSource: smartSearchSource,
